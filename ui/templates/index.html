@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Intern Performance Predictor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">Intern Performance Predictor</p>
+        <h1>Predict performance from task, feedback, and attendance signals.</h1>
+        <p class="lead">This UI uses the saved model from the synthetic prototype pipeline and includes input validation for missing or noisy values.</p>
+      </div>
+      <div class="metric-card">
+        <span>Model</span>
+        <strong>{{ metadata.model_name }}</strong>
+        <small>Regression-based score with Excel/Average/Struggle mapping.</small>
+      </div>
+    </section>
+
+    <section class="content-grid">
+      <form class="panel form-panel" action="/predict" method="post">
+        <div class="panel-header">
+          <h2>Prediction Inputs</h2>
+          <p>Leave a field blank to fall back to the training median.</p>
+        </div>
+
+        <div class="field-grid">
+          <label>
+            <span>Task completion hrs</span>
+            <input name="task_completion_hrs" type="number" step="0.01" min="0" max="24" value="{{ defaults.get('task_completion_hrs', 8) }}">
+          </label>
+          <label>
+            <span>Feedback rating</span>
+            <input name="feedback_rating" type="number" step="0.01" min="0" max="5" value="{{ defaults.get('feedback_rating', 3) }}">
+          </label>
+          <label>
+            <span>Attendance pct</span>
+            <input name="attendance_pct" type="number" step="0.1" min="0" max="100" value="{{ defaults.get('attendance_pct', 85) }}">
+          </label>
+        </div>
+
+        <button type="submit">Predict performance</button>
+      </form>
+
+      <aside class="panel result-panel">
+        <div class="panel-header">
+          <h2>Result</h2>
+          <p>Current holdout metrics for the selected model.</p>
+        </div>
+
+        {% if metadata.metrics %}
+        <div class="result-stats">
+          <div><span>RMSE</span><strong>{{ metadata.metrics['rmse']|round(2) }}</strong></div>
+          <div><span>MAE</span><strong>{{ metadata.metrics['mae']|round(2) }}</strong></div>
+          <div><span>R2</span><strong>{{ metadata.metrics['r2']|round(3) }}</strong></div>
+        </div>
+        {% endif %}
+
+        {% if prediction %}
+        <div class="prediction-card">
+          <p>Predicted score</p>
+          <strong>{{ prediction.score }}</strong>
+          <span class="badge badge-{{ prediction.category|lower }}">{{ prediction.category }}</span>
+          <small>Model used: {{ prediction.model_name }}</small>
+        </div>
+        {% else %}
+        <div class="placeholder">
+          <p>Submit the form to see the prediction and class bucket.</p>
+        </div>
+        {% endif %}
+
+        {% if error %}
+        <div class="error-box">{{ error }}</div>
+        {% endif %}
+      </aside>
+    </section>
+
+    <section class="panel footer-panel">
+      <h3>Validation note</h3>
+      <p>Inputs are coerced to numeric values, clipped to plausible ranges, and missing values fall back to the training medians to make the pipeline safer for messy real-world data.</p>
+    </section>
+  </main>
+</body>
+</html>
