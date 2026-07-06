@@ -85,6 +85,9 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
+# VS Code Code Runner temp file
+tempCodeRunnerFile.py
+
 # OS-specific files
 .DS_Store
 Thumbs.db
