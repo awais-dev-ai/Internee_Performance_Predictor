@@ -1,3 +1,13 @@
+---
+title: Intern Performance Predictor
+emoji: 🎓
+colorFrom: blue
+colorTo: green
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # Intern Performance Predictor
 
 ![Python](https://img.shields.io/badge/python-3.12-blue)
