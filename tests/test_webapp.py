@@ -40,8 +40,14 @@ def test_flask_index_and_prediction_flow(tmp_path):
     )
 
     assert predict_response.status_code == 200
-    assert b"Predicted score" in predict_response.data
+    # Check that the gauge score text and category badge are present
     assert any(label in predict_response.data for label in [b"Excel", b"Average", b"Struggle"])
+    # Check that a numeric score appears in the gauge SVG
+    import re
+    score_match = re.search(rb'data-score="(\d+\.?\d*)"', predict_response.data)
+    assert score_match is not None, "Expected a score in the gauge SVG"
+    score = float(score_match.group(1))
+    assert 0 <= score <= 101  # Allow slight rounding above 100
 
 
 def test_flask_health_endpoint(tmp_path):

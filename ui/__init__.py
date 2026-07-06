@@ -140,10 +140,38 @@ def create_app(
             struggle_threshold=struggle_threshold,
             excel_threshold=excel_threshold,
         )[0]
+
+        # Compute feature contributions
+        features_list = []
+        if hasattr(model, "feature_importances_"):
+            importances = model.feature_importances_
+            feature_names = list(FEATURE_COLUMNS)
+            input_values = feature_frame.iloc[0]
+            # Get median values as baseline
+            baseline = feature_frame.median()
+
+            for i, name in enumerate(feature_names):
+                if i < len(importances):
+                    # How far from baseline, scaled by importance
+                    deviation = float(input_values[name] - baseline[name])
+                    # Get max deviation in training to normalize
+                    direction = "positive" if deviation >= 0 else "negative"
+                    # Scale contribution percentage
+                    abs_dev = abs(deviation)
+                    max_dev = max(abs(float(input_values[name])), 1.0)
+                    pct = min(abs_dev / max_dev * 100 * float(importances[i]), 100)
+                    features_list.append({
+                        "name": name,
+                        "value": f"{float(input_values[name]):.1f}",
+                        "direction": direction,
+                        "pct": round(pct, 1),
+                    })
+
         return {
             "score": round(predicted_score, 1),
             "category": category,
             "model_name": metadata.get("model_name", "Unknown"),
+            "features": features_list,
         }
 
     @app.get("/")
