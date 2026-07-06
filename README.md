@@ -46,7 +46,9 @@ Challenge: In real data, Struggle and Excel interns are rare (~15% each), making
 | **Average** | 0.92 | 0.92 | 0.92 | 181 |
 | **Excel** | 0.93 | 0.91 | 0.92 | 163 |
 
-**Key insight:** Struggle recall = 1.00 — the model catches every struggling intern.
+> **Note:** These metrics are achieved on a **synthetic dataset** generated to mimic intern performance patterns. In real-world production with noisy, incomplete HR data, these numbers would require re-evaluation with real data, feature engineering, and continuous monitoring.
+
+**Key insight:** The pipeline demonstrates strong recall for minority classes on synthetic benchmarks, validating the class-imbalance strategy (oversampling, sample weights, threshold tuning). In production with real HR data, this would require continuous validation and drift monitoring.
 
 ## Web Interface
 
@@ -226,7 +228,7 @@ Return: score + category (Struggle/Average/Excel)
 ### After (Optimized pipeline)
 - 15/70/15 distribution
 - Full imbalance strategy
-- **Struggle recall: 100%**
+- **Struggle recall: High (1.00 on synthetic test set)** — validates the imbalance-handling approach
 - Optimized thresholds (39/74)
 
 ## Future Improvements
