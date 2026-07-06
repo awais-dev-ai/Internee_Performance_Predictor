@@ -168,7 +168,7 @@ def create_app(
                     })
 
         return {
-            "score": round(predicted_score, 1),
+            "score": round(min(max(predicted_score, 0), 100), 1),
             "category": category,
             "model_name": metadata.get("model_name", "Unknown"),
             "features": features_list,
