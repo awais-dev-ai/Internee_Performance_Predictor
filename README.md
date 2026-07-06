@@ -3,7 +3,7 @@
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![Flask](https://img.shields.io/badge/Flask-3.0-green)
 ![XGBoost](https://img.shields.io/badge/XGBoost-2.0-orange)
-![CI](https://github.com/awaisahmad/Internee_Performance_Predictor/workflows/CI/badge.svg)
+![CI](https://github.com/awais-dev-ai/Internee_Performance_Predictor/workflows/CI/badge.svg)
 
 **Predict intern performance and flag struggling/excellent interns using ML with class imbalance handling.**
 
