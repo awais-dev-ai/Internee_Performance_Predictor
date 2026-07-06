@@ -216,13 +216,13 @@ Return: score + category (Struggle/Average/Excel)
 
 ## Business Impact
 
-### Before (bugged approach)
+### Before (Baseline / Unoptimized approach)
 - 25/50/25 distribution
 - No imbalance handling
 - Struggle recall: ~60-70%
 - Hardcoded thresholds (40/75)
 
-### After
+### After (Optimized pipeline)
 - 15/70/15 distribution
 - Full imbalance strategy
 - **Struggle recall: 100%**
@@ -246,8 +246,4 @@ MIT License — feel free to use this project for learning or as a portfolio pie
 Email: awaisahmad.dev.ai@gmail.com  
 LinkedIn: [linkedin.com/in/awaisahmad-dev-ai](https://www.linkedin.com/in/awaisahmad-dev-ai/)
 
-Built as a portfolio project demonstrating:
-- Production-quality ML engineering
-- Class imbalance handling expertise
-- Full-stack deployment skills
-- DevOps practices (CI/CD, Docker)
+Built to demonstrate production-grade ML engineering, class-imbalance handling, and full-stack deployment.
