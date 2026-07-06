@@ -160,10 +160,58 @@ def create_app(
     @app.post("/predict")
     def predict():
         try:
+            raw = {
+                "task_completion_hrs": request.form.get("task_completion_hrs", "").strip(),
+                "feedback_rating": request.form.get("feedback_rating", "").strip(),
+                "attendance_pct": request.form.get("attendance_pct", "").strip(),
+            }
+
+            # --- Input validation ---
+            errors = []
+
+            # Check for empty fields
+            for field, value in raw.items():
+                if not value:
+                    errors.append(f"{field} is required.")
+
+            # Check for valid numeric values
+            parsed = {}
+            for field, value in raw.items():
+                if not value:
+                    continue
+                try:
+                    parsed[field] = float(value)
+                except ValueError:
+                    errors.append(f"{field} must be a number, got '{value}'.")
+
+            # Check range bounds
+            range_checks = {
+                "task_completion_hrs": (2.0, 20.0),
+                "feedback_rating": (1.0, 5.0),
+                "attendance_pct": (50.0, 100.0),
+            }
+            for field, (low, high) in range_checks.items():
+                if field in parsed:
+                    val = parsed[field]
+                    if val < low or val > high:
+                        errors.append(
+                            f"{field} must be between {low} and {high}, got {val}."
+                        )
+
+            if errors:
+                return render_template(
+                    "index.html",
+                    feature_columns=FEATURE_COLUMNS,
+                    defaults=defaults,
+                    prediction=None,
+                    error=" | ".join(errors),
+                    metadata=metadata,
+                ), 400
+
             payload = {
-                "task_completion_hrs": request.form.get("task_completion_hrs", ""),
-                "feedback_rating": request.form.get("feedback_rating", ""),
-                "attendance_pct": request.form.get("attendance_pct", ""),
+                "task_completion_hrs": parsed["task_completion_hrs"],
+                "feedback_rating": parsed["feedback_rating"],
+                "attendance_pct": parsed["attendance_pct"],
             }
             prediction = predict_from_payload(payload)
             return render_template(
