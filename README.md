@@ -52,7 +52,7 @@ Challenge: In real data, Struggle and Excel interns are rare (~15% each), making
 
 ![App Screenshot](images/app-screenshot.png)
 
-*The Flask web app lets users input task completion hours, feedback rating, and attendance percentage to get instant predictions.*
+*The Flask web app lets users input task completion hours, feedback rating, and attendance percentage to get instant predictions. Input validation ensures all fields are filled with valid numeric values within expected ranges.*
 
 ## Quick Start
 
@@ -89,7 +89,7 @@ python main.py
 - **Class imbalance handling** — sample weights, oversampling, stratified split
 - **Threshold optimization** — grid search for best classification cutoffs
 - **Explainability** — SHAP values + feature importance
-- **Web interface** — Flask form for real-time predictions
+- **Web interface** — Flask form for real-time predictions with input validation (empty field checks, numeric type enforcement, range bounds)
 - **Unit tests** — 16 tests covering data, models, preprocessing, and web app
 
 ## Project Structure
@@ -171,6 +171,7 @@ save_model_artifacts()  # model + metadata with thresholds
 
 ```
 User Input (Flask form)
+    ↓  Input validation (empty fields, numeric type, range bounds)
     ↓
 prepare_prediction_frame()  # clean + validate
     ↓
