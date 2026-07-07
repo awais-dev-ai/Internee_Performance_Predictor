@@ -1,5 +1,5 @@
 from src.data_generation import generate_synthetic_data
-from src.model_training import evaluate_regression_model, load_model_artifacts, save_model_artifacts, select_best_model, train_candidate_models
+from src.model_training import load_model_artifacts, save_model_artifacts, select_best_model, train_candidate_models
 from src.preprocessing import train_test_split_data
 
 

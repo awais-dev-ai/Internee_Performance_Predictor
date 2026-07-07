@@ -1,0 +1,7 @@
+# Jupyter notebooks intentionally place imports after `%matplotlib inline`
+# and `warnings.filterwarnings(...)`, which trips E402, and keep some
+# unused imports for teaching clarity. Exclude them from linting.
+exclude = ["notebooks"]
+
+[lint]
+# Be lenient about unused imports inside __init__ re-exports handled via __all__.
