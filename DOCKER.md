@@ -33,7 +33,7 @@ docker-compose down -v
 ```
 
 ## Access the app
-Open browser: http://localhost:5000
+Open browser: http://localhost:7860
 
 ## What persists
 - `data/` folder — your generated datasets

@@ -18,6 +18,16 @@ from src.model_training import (
 from src.preprocessing import FEATURE_COLUMNS, prepare_prediction_frame, train_test_split_data
 
 
+class _ClippedModel:
+    """Wrapper that clips regression predictions to the valid score range."""
+
+    def __init__(self, model):
+        self._model = model
+
+    def predict(self, X):
+        return self._model.predict(X).clip(0, 100)
+
+
 def _project_paths(base_dir: Path | None = None) -> dict[str, Path]:
     """Resolve project paths relative to the UI package root."""
 
@@ -122,13 +132,15 @@ def create_app(
     if metadata_path is not None:
         paths["metadata_path"] = Path(metadata_path)
 
-    model, metadata = ensure_artifacts(paths)
+    raw_model, metadata = ensure_artifacts(paths)
+    model = _ClippedModel(raw_model)
     defaults = metadata.get("feature_defaults", {})
 
     # Use optimized thresholds if available, otherwise use defaults
     threshold_opt = metadata.get("threshold_optimization", {})
     struggle_threshold = threshold_opt.get("struggle_threshold", 40.0)
     excel_threshold = threshold_opt.get("excel_threshold", 75.0)
+    metrics = metadata.get("metrics", {}) or {}
 
     def predict_from_payload(payload: dict[str, object]) -> dict[str, object]:
         """Run the full prediction pipeline on a raw form payload."""
@@ -143,8 +155,8 @@ def create_app(
 
         # Compute feature contributions
         features_list = []
-        if hasattr(model, "feature_importances_"):
-            importances = model.feature_importances_
+        if hasattr(raw_model, "feature_importances_"):
+            importances = raw_model.feature_importances_
             feature_names = list(FEATURE_COLUMNS)
             input_values = feature_frame.iloc[0]
             # Get median values as baseline
@@ -183,6 +195,9 @@ def create_app(
             prediction=None,
             error=None,
             metadata=metadata,
+            metrics=metrics,
+            struggle_threshold=struggle_threshold,
+            excel_threshold=excel_threshold,
         )
 
     @app.post("/predict")
@@ -197,7 +212,7 @@ def create_app(
             # --- Input validation ---
             errors = []
 
-            # Check for empty fields
+            # Check for empty fields — all fields are required
             for field, value in raw.items():
                 if not value:
                     errors.append(f"{field} is required.")
@@ -234,6 +249,9 @@ def create_app(
                     prediction=None,
                     error=" | ".join(errors),
                     metadata=metadata,
+                    metrics=metrics,
+                    struggle_threshold=struggle_threshold,
+                    excel_threshold=excel_threshold,
                 ), 400
 
             payload = {
@@ -249,6 +267,9 @@ def create_app(
                 prediction=prediction,
                 error=None,
                 metadata=metadata,
+                metrics=metrics,
+                struggle_threshold=struggle_threshold,
+                excel_threshold=excel_threshold,
             )
         except Exception as exc:  # pragma: no cover - surfaced to UI
             return render_template(
@@ -258,6 +279,9 @@ def create_app(
                 prediction=None,
                 error=str(exc),
                 metadata=metadata,
+                metrics=metrics,
+                struggle_threshold=struggle_threshold,
+                excel_threshold=excel_threshold,
             ), 400
 
     @app.get("/health")

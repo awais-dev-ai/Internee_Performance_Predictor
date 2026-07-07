@@ -8,25 +8,63 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    /* ---- Extra styles (centering + background colors) ---- */
+    .metric-card {
+      text-align: center;          /* center model name & subtitle */
+      align-items: center;         /* flex centering */
+    }
+    .metric-card .mini-metrics {
+      text-align: left;            /* keep metrics left-aligned for readability */
+      align-self: flex-start;
+      width: 100%;
+    }
+
+    /* Give panels a subtle background */
+    .panel {
+      background: rgba(255, 255, 255, 0.92); /* more opaque than before */
+      backdrop-filter: blur(8px);
+    }
+
+    .gauge-fill {
+      transition: stroke-dashoffset 1.2s ease-out, stroke 0.5s ease;
+    }
+    .contrib-fill {
+      width: 0;
+      transition: width 1s ease-out;
+    }
+  </style>
 </head>
 <body>
   <main class="shell">
     <!-- Hero -->
     <section class="hero">
       <div>
-        <p class="eyebrow">Intern Performance Predictor</p>
-        <h1>Enter task hours, feedback rating, and attendance to instantly predict performance scores and identify at-risk or high-potential interns.</h1>
-        <p class="lead">Built with XGBoost • Class-imbalance optimized • 93.5% balanced accuracy</p>
+        <h1 class="title">Intern Performance Predictor</h1>
+        <h2>Enter task hours, feedback rating, and attendance to instantly predict performance scores and identify at-risk or high-potential interns.</h2>
+        <p class="lead">Built with XGBoost • Class-imbalance optimized • {{ metrics.balanced_accuracy|round(3) if metrics and metrics.balanced_accuracy is defined else '—' }} balanced accuracy</p>
       </div>
       <div class="metric-card">
         <span>Model</span>
-        <strong>{{ metadata.model_name }}</strong>
+        <strong>{{ metadata.model_name if metadata else 'XGBoost' }}</strong>
         <small>XGBoost (Regressor + Classifier)</small>
-        {% if metadata.metrics %}
+        {% if metadata and metadata.metrics %}
         <div class="mini-metrics">
           <div><span>RMSE</span><strong>{{ metadata.metrics['rmse']|round(2) }}</strong></div>
           <div><span>R²</span><strong>{{ metadata.metrics['r2']|round(3) }}</strong></div>
-          <div><span>Bal. Acc</span><strong>0.944</strong></div>
+          <div><span>Bal. Acc</span><strong>{{ metadata.metrics['balanced_accuracy']|round(3) }}</strong></div>
+        </div>
+        {% elif metrics %}
+        <div class="mini-metrics">
+          <div><span>RMSE</span><strong>{{ metrics.rmse|round(2) if metrics.rmse is defined else '—' }}</strong></div>
+          <div><span>R²</span><strong>{{ metrics.r2|round(3) if metrics.r2 is defined else '—' }}</strong></div>
+          <div><span>Bal. Acc</span><strong>{{ metrics.balanced_accuracy|round(3) if metrics.balanced_accuracy is defined else '—' }}</strong></div>
+        </div>
+        {% else %}
+        <div class="mini-metrics">
+          <div><span>RMSE</span><strong>—</strong></div>
+          <div><span>R²</span><strong>—</strong></div>
+          <div><span>Bal. Acc</span><strong>—</strong></div>
         </div>
         {% endif %}
       </div>
@@ -39,21 +77,27 @@
         <form class="panel form-panel" action="/predict" method="post">
           <div class="panel-header">
             <h2>Enter Values Below</h2>
-            <p>Leave blank to use default median values.</p>
+            <p>All fields are required. Values must be within the shown ranges.</p>
           </div>
 
           <div class="field-grid">
             <label>
-              <span>Task Completion Hours</span>
-              <input name="task_completion_hrs" type="number" step="0.01" min="2" max="20" placeholder="e.g. 8.5" value="{{ defaults.get('task_completion_hrs', 8.5) }}">
+              <span>Task Completion Hours <span class="range-hint">(2 – 20 hrs)</span></span>
+              <input name="task_completion_hrs" type="number" step="0.01" min="2" max="20"
+                     placeholder="e.g. 8.5"
+                     value="{{ request.form.get('task_completion_hrs', '') }}">
             </label>
             <label>
-              <span>Feedback Rating (1–5)</span>
-              <input name="feedback_rating" type="number" step="0.01" min="1" max="5" placeholder="e.g. 3.2" value="{{ defaults.get('feedback_rating', 3.2) }}">
+              <span>Feedback Rating <span class="range-hint">(1 – 5)</span></span>
+              <input name="feedback_rating" type="number" step="0.01" min="1" max="5"
+                     placeholder="e.g. 3.2"
+                     value="{{ request.form.get('feedback_rating', '') }}">
             </label>
             <label>
-              <span>Attendance (%)</span>
-              <input name="attendance_pct" type="number" step="0.1" min="50" max="100" placeholder="e.g. 85.0" value="{{ defaults.get('attendance_pct', 85.0) }}">
+              <span>Attendance (%) <span class="range-hint">(50 – 100%)</span></span>
+              <input name="attendance_pct" type="number" step="0.1" min="50" max="100"
+                     placeholder="e.g. 85.0"
+                     value="{{ request.form.get('attendance_pct', '') }}">
             </label>
           </div>
 
@@ -67,17 +111,17 @@
             <div class="scenario-card scenario-struggle" data-hrs="16" data-feedback="1.8" data-attendance="62">
               <span class="scenario-icon">⚠️</span>
               <strong>Struggling</strong>
-              <small>High hours, low feedback</small>
+              <small>High hours, low feedback, low attendance</small>
             </div>
             <div class="scenario-card scenario-average" data-hrs="9" data-feedback="3.0" data-attendance="82">
               <span class="scenario-icon">📊</span>
               <strong>Average</strong>
               <small>Typical performance</small>
             </div>
-            <div class="scenario-card scenario-excel" data-hrs="4" data-feedback="4.5" data-attendance="96">
+            <div class="scenario-card scenario-excel" data-hrs="6" data-feedback="4" data-attendance="96">
               <span class="scenario-icon">🌟</span>
               <strong>Top Performer</strong>
-              <small>Low hours, high feedback</small>
+              <small>Low hours, high feedback, high attendance</small>
             </div>
           </div>
         </div>
@@ -96,9 +140,7 @@
           <div class="gauge-wrapper">
             <svg class="gauge-svg" viewBox="0 0 200 200">
               <circle class="gauge-bg" cx="100" cy="100" r="85" />
-              <circle class="gauge-fill" id="gauge-fill" cx="100" cy="100" r="85"
-                stroke-dasharray="0, 534"
-                data-score="{{ prediction.score }}" />
+              <circle class="gauge-fill" id="gauge-fill" cx="100" cy="100" r="85" data-score="{{ prediction.score }}" data-struggle="{{ struggle_threshold }}" data-excel="{{ excel_threshold }}" />
               <text class="gauge-score" x="100" y="90" text-anchor="middle">{{ prediction.score }}</text>
               <text class="gauge-label" x="100" y="120" text-anchor="middle">/ 100</text>
             </svg>
@@ -106,23 +148,43 @@
           <span class="badge badge-{{ prediction.category|lower }}">{{ prediction.category }}</span>
         </div>
 
-        <!-- Feature Contribution Bars -->
-        {% if prediction.features %}
+        <!-- ✅ Always show the three input bars (from submitted values) -->
         <div class="contributions">
-          <h3>Feature Contributions</h3>
-          {% for feat in prediction.features %}
+          <h3>Input Values</h3>
+
+          <!-- Hours -->
           <div class="contrib-bar">
             <div class="contrib-label">
-              <span>{{ feat.name }}</span>
-              <strong>{{ feat.value }}</strong>
+              <span>Task Completion Hours</span>
+              <strong id="hours-value">{{ request.form.get('task_completion_hrs', '—') }}</strong>
             </div>
             <div class="contrib-track">
-              <div class="contrib-fill contrib-{{ feat.direction }}" style="width: {{ feat.pct }}%"></div>
+              <div class="contrib-fill contrib-positive" id="hours-bar" data-value="{{ request.form.get('task_completion_hrs', '') }}"></div>
             </div>
           </div>
-          {% endfor %}
+
+          <!-- Feedback -->
+          <div class="contrib-bar">
+            <div class="contrib-label">
+              <span>Feedback Rating</span>
+              <strong id="feedback-value">{{ request.form.get('feedback_rating', '—') }}</strong>
+            </div>
+            <div class="contrib-track">
+              <div class="contrib-fill contrib-positive" id="feedback-bar" data-value="{{ request.form.get('feedback_rating', '') }}"></div>
+            </div>
+          </div>
+
+          <!-- Attendance -->
+          <div class="contrib-bar">
+            <div class="contrib-label">
+              <span>Attendance (%)</span>
+              <strong id="attendance-value">{{ request.form.get('attendance_pct', '—') }}</strong>
+            </div>
+            <div class="contrib-track">
+              <div class="contrib-fill contrib-positive" id="attendance-bar" data-value="{{ request.form.get('attendance_pct', '') }}"></div>
+            </div>
+          </div>
         </div>
-        {% endif %}
 
         <div class="prediction-meta">
           <small>Model: {{ prediction.model_name }}</small>
@@ -131,7 +193,7 @@
         {% else %}
         <div class="placeholder">
           <div class="placeholder-icon">📋</div>
-          <p>Fill in the form and click <strong>Predict</strong> to see the score and category.</p>
+          <p>Fill in all fields and click <strong>Predict</strong> to see the score and category.</p>
         </div>
         {% endif %}
 
@@ -148,30 +210,68 @@
   </main>
 
   <script>
-    // Animate gauge on load
     document.addEventListener('DOMContentLoaded', function() {
+      // ---- Gauge ----
       const gauge = document.getElementById('gauge-fill');
-      if (gauge) {
+      if (gauge && gauge.dataset.score) {
         const score = parseFloat(gauge.dataset.score);
         const circumference = 2 * Math.PI * 85;
         const offset = circumference * (1 - score / 100);
+        const struggleThreshold = parseFloat(gauge.dataset.struggle || '40');
+        const excelThreshold = parseFloat(gauge.dataset.excel || '75');
         setTimeout(function() {
           gauge.style.strokeDasharray = circumference + ', ' + circumference;
           gauge.style.strokeDashoffset = offset;
-          gauge.classList.add('animated');
         }, 100);
-
-        // Color based on score
-        if (score <= 39) {
+        if (score <= struggleThreshold) {
           gauge.style.stroke = '#dc2626';
-        } else if (score >= 75) {
+        } else if (score >= excelThreshold) {
           gauge.style.stroke = '#16a34a';
         } else {
           gauge.style.stroke = '#0f766e';
         }
       }
 
-      // Scenario card click
+      // ---- Fill the three bars from data-value ----
+      const ranges = {
+        'hours':    { min: 2, max: 20 },
+        'feedback': { min: 1, max: 5 },
+        'attendance': { min: 50, max: 100 }
+      };
+      const barMap = {
+        'hours-bar': 'hours',
+        'feedback-bar': 'feedback',
+        'attendance-bar': 'attendance'
+      };
+
+      Object.keys(barMap).forEach(function(barId) {
+        const bar = document.getElementById(barId);
+        if (!bar) return;
+        const raw = bar.dataset.value;
+        if (raw === '' || raw === null) return;
+        const val = parseFloat(raw);
+        if (isNaN(val)) return;
+        const feature = barMap[barId];
+        const range = ranges[feature];
+        if (!range) return;
+        let pct = ((val - range.min) / (range.max - range.min)) * 100;
+        pct = Math.min(Math.max(pct, 0), 100);
+        bar.style.width = pct + '%';
+      });
+
+      // ---- Input highlight based on category ----
+      const badge = document.querySelector('.badge');
+      if (badge) {
+        let cls = '';
+        if (badge.classList.contains('badge-struggle')) cls = 'input-struggle';
+        else if (badge.classList.contains('badge-average')) cls = 'input-average';
+        else if (badge.classList.contains('badge-excel')) cls = 'input-excel';
+        if (cls) {
+          document.querySelectorAll('.field-grid input').forEach(inp => inp.classList.add(cls));
+        }
+      }
+
+      // ---- Scenario cards ----
       document.querySelectorAll('.scenario-card').forEach(function(card) {
         card.addEventListener('click', function() {
           document.querySelector('input[name="task_completion_hrs"]').value = this.dataset.hrs;

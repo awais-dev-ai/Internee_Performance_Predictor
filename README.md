@@ -13,24 +13,27 @@ pinned: false
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![Flask](https://img.shields.io/badge/Flask-3.0-green)
 ![XGBoost](https://img.shields.io/badge/XGBoost-2.0-orange)
-![CI](https://github.com/awais-dev-ai/Internee_Performance_Predictor/workflows/CI/badge.svg)
+[![CI](https://github.com/awais-dev-ai/Internee_Performance_Predictor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/awais-dev-ai/Internee_Performance_Predictor/actions/workflows/ci.yml)
+[![Hugging Face](https://img.shields.io/badge/🤗-Deployed%20on%20Spaces-yellow)](https://huggingface.co/spaces/awais-dev-ai/Intern-Performance-Predictor)
 
 **Predict intern performance and flag struggling/excellent interns using ML with class imbalance handling.**
 
 ## Business Problem
 
 Companies need to identify:
-- **Struggling interns** (≤ 39 score) → coaching intervention
-- **Excellent interns** (≥ 74 score) → advanced assignments
-- **Average interns** (40-73) → standard track
+- **Struggling interns** (≤ default 40 score, optimized cutoff from metadata) → coaching intervention
+- **Excellent interns** (≥ default 75 score, optimized cutoff from metadata) → advanced assignments
+- **Average interns** (in between) → standard track
+
+> Classification uses grid-searched thresholds stored in `model_metadata.pkl` (`threshold_optimization`); the defaults are 40/75. The exact values are printed by the training pipeline and notebook.
 
 Challenge: In real data, Struggle and Excel interns are rare (~15% each), making them hard to predict accurately.
 
 ## Solution
 
 **Multi-layer class imbalance strategy:**
-1. **15/70/15 data distribution** — mimics real intern populations
-2. **Oversampling with jitter** — duplicates minority samples with small noise
+1. **15/70/15 data distribution** — mimics real intern populations (initial generation)
+2. **Oversampling with jitter** — boosts minority classes toward the majority count (note: post-oversampling proportions are no longer exactly 15/70/15)
 3. **Sample-weighted training** — gives higher weight to Struggle/Excel during training
 4. **Stratified splitting** — preserves class proportions in train/test sets
 5. **Composite model selection** — balances RMSE + balanced accuracy
@@ -41,20 +44,22 @@ Challenge: In real data, Struggle and Excel interns are rare (~15% each), making
 | Metric | Value |
 |--------|-------|
 | **Model** | XGBoost |
-| **RMSE** | 4.07 |
-| **MAE** | 3.03 |
-| **R²** | 0.965 |
-| **Accuracy** | 0.927 |
-| **Balanced Accuracy** | 0.944 |
-| **Macro F1** | 0.938 |
+| **RMSE** | 4.04 |
+| **MAE** | 2.98 |
+| **R²** | 0.966 |
+| **Accuracy** | 0.917 |
+| **Balanced Accuracy** | 0.935 |
+| **Macro F1** | 0.927 |
 
-### Per-Class Performance
+### Per-Class Performance (F1)
 
-| Class | Precision | Recall | F1 | Support |
-|-------|-----------|--------|----|---------|
-| **Struggle** | 0.95 | **1.00** | 0.97 | 56 |
-| **Average** | 0.92 | 0.92 | 0.92 | 181 |
-| **Excel** | 0.93 | 0.91 | 0.92 | 163 |
+> Reported by the analysis notebook (`notebooks/Intern_Performance_Analysis.ipynb`, §16).
+
+| Class | F1 |
+|-------|----|
+| **Excel** | 0.899 |
+| **Average** | 0.917 |
+| **Struggle** | 0.965 |
 
 > **Note:** These metrics are achieved on a **synthetic dataset** generated to mimic intern performance patterns. In real-world production with noisy, incomplete HR data, these numbers would require re-evaluation with real data, feature engineering, and continuous monitoring.
 
@@ -62,7 +67,7 @@ Challenge: In real data, Struggle and Excel interns are rare (~15% each), making
 
 ## Web Interface
 
-![App Screenshot](images/app-screenshot.png)
+![App Screenshot](images/screenshot.png)
 
 *The Flask web app lets users input task completion hours, feedback rating, and attendance percentage to get instant predictions. Input validation ensures all fields are filled with valid numeric values within expected ranges.*
 
@@ -85,7 +90,7 @@ python app.py
 # Build and start
 docker-compose up
 
-# Open http://localhost:5000
+# Open http://localhost:7860  (container port; HF uses 7860)
 ```
 
 ### Option 3: Train Only (CLI)
@@ -102,7 +107,7 @@ python main.py
 - **Threshold optimization** — grid search for best classification cutoffs
 - **Explainability** — SHAP values + feature importance
 - **Web interface** — Flask form for real-time predictions with input validation (empty field checks, numeric type enforcement, range bounds)
-- **Unit tests** — 16 tests covering data, models, preprocessing, and web app
+- **Unit tests** — pytest suite covering data, models, preprocessing, and web app (see `tests/`)
 
 ## Project Structure
 
@@ -113,8 +118,9 @@ python main.py
 ├── Dockerfile              # Container definition
 ├── docker-compose.yml      # One-command deployment
 ├── requirements.txt        # Python dependencies
-├── app.py                  # Flask entry point
+├── app.py                  # Flask entry point (listens on PORT, default 5000; Docker sets PORT=7860)
 ├── main.py                 # Training pipeline (CLI)
+├── wsgi.py                 # WSGI entry point (gunicorn/waitress)
 ├── src/
 │   ├── __init__.py
 │   ├── data_generation.py     # Synthetic data with 15/70/15 distribution
@@ -127,7 +133,7 @@ python main.py
 │   └── __init__.py            # Flask app factory
 ├── notebooks/
 │   └── Intern_Performance_Analysis.ipynb  # Full analysis with plots
-├── tests/                    # 16 unit tests
+├── tests/                    # Unit tests (see tests/ for current count)
 └── data/                     # Generated datasets
 ```
 
@@ -150,8 +156,14 @@ The notebook ([`Intern_Performance_Analysis.ipynb`](notebooks/Intern_Performance
 
 ### 4. Classification Results
 - Confusion matrix (Excel/Average/Struggle)
-- Per-class precision, recall, F1
+- Per-class F1
 - Threshold optimization visualization (optional)
+
+## Deployment — Hugging Face Spaces
+
+The app is automatically built and deployed to [Hugging Face Spaces](https://huggingface.co/spaces/awais-dev-ai/Intern-Performance-Predictor) via the `deploy-hf` job in the CI workflow (`ci.yml`) on every successful push to `main`. A Docker SDK Space is used, matching the project `Dockerfile` (served on port 7860).
+
+A step-by-step manual deployment guide is available in [`HUGGINGFACE.md`](HUGGINGFACE.md). The live demo can also be opened directly from the **Open In Spaces** badge at the top of this README.
 
 ## Architecture
 
@@ -159,22 +171,24 @@ The notebook ([`Intern_Performance_Analysis.ipynb`](notebooks/Intern_Performance
 
 ```
 generate_synthetic_data()
-    └─ 15% Struggle + 70% Average + 15% Excel
-    └─ Oversample minority classes with Gaussian jitter
+    └─ 15% Struggle + 70% Average + 15% Excel (initial generation)
+    └─ Oversample minority classes with Gaussian jitter toward majority count
        ↓
-train_test_split_data(stratify=True)
-    └─ Preserves 15/70/15 in both train and test
+train_val_test_split(stratify=True)
+    └─ Splits into Train / Validation (15%) / Test (20%), preserving stratified proportions
        ↓
-train_candidate_models(use_sample_weights=True)
-    └─ Random Forest + XGBoost
+tune_candidate_models(use_sample_weights=True)
+    └─ 5-fold GridSearchCV over Random Forest + XGBoost
     └─ Inverse class frequency weights (Struggle/Excel get higher weight)
        ↓
-select_best_model(alpha=0.5)
-    └─ Composite: 0.5 * (1 - normalized_rmse) + 0.5 * balanced_accuracy
+select_best_model(fitted_models, X_val, y_val, alpha=0.5)
+    └─ Composite on VALIDATION set: 0.5 * (1 - normalized_rmse) + 0.5 * balanced_accuracy
        ↓
 optimize_thresholds(metric="macro_f1")
-    └─ Grid search: struggle_range=[30-50], excel_range=[65-85]
-    └─ Finds Struggle ≤ 39, Excel ≥ 74
+    └─ Grid search on VALIDATION predictions: struggle_range=[30-50], excel_range=[65-85]
+    └─ Finds optimal Struggle/Excel cutoffs (stored in metadata; defaults 40/75)
+       ↓
+regression_metrics(X_test, y_test)  # Final unbiased test-set reporting
        ↓
 save_model_artifacts()  # model + metadata with thresholds
 ```
@@ -204,7 +218,7 @@ Return: score + category (Struggle/Average/Excel)
 | **Explainability** | SHAP |
 | **Testing** | pytest |
 | **CI/CD** | GitHub Actions |
-| **Deployment** | Docker + Docker Compose |
+| **Deployment** | Docker, Docker Compose, Hugging Face Spaces |
 
 ## Key Design Decisions
 
@@ -222,11 +236,6 @@ Return: score + category (Struggle/Average/Excel)
 - **Business-aware** — optimizes for Macro F1, not just accuracy
 - **Transparent** — you can see the exact thresholds used
 
-### Why fixed hyperparameters in production?
-- **Fast** — no CV overhead on startup
-- **Sufficient** — defaults are already well-tuned from notebook experiments
-- **Maintainable** — simpler code, easier to understand
-
 ## Business Impact
 
 ### Before (Baseline / Unoptimized approach)
@@ -236,10 +245,10 @@ Return: score + category (Struggle/Average/Excel)
 - Hardcoded thresholds (40/75)
 
 ### After (Optimized pipeline)
-- 15/70/15 distribution
+- 15/70/15 initial distribution, minority-boosted via oversampling
 - Full imbalance strategy
-- **Struggle recall: High (1.00 on synthetic test set)** — validates the imbalance-handling approach
-- Optimized thresholds (39/74)
+- **Struggle F1: 0.965 on synthetic test set** — validates the imbalance-handling approach
+- Optimized thresholds stored in metadata (grid search; defaults 40/75)
 
 ## Future Improvements
 

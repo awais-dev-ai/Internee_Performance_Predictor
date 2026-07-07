@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import balanced_accuracy_score, mean_absolute_error, mean_squared_error, r2_score
+from sklearn.model_selection import GridSearchCV
 from xgboost import XGBRegressor
 
 from src.evaluation import classify_performance
@@ -27,6 +28,16 @@ class ModelResult:
 # Thresholds for binning performance scores into classes
 STRUGGLE_THRESHOLD = 40.0
 EXCEL_THRESHOLD = 75.0
+
+# Valid score range for the performance target
+SCORE_MIN = 0.0
+SCORE_MAX = 100.0
+
+
+def clip_predictions(preds) -> np.ndarray:
+    """Clip regression predictions to the valid performance score range [0, 100]."""
+
+    return np.clip(np.asarray(preds, dtype=float), SCORE_MIN, SCORE_MAX)
 
 
 def _compute_sample_weights(y: pd.Series) -> np.ndarray:
@@ -74,8 +85,7 @@ def build_candidate_models(random_state: int = 42) -> dict[str, Any]:
 
 def evaluate_regression_model(model, X_test: pd.DataFrame, y_test: pd.Series) -> ModelResult:
     """Compute regression metrics for a fitted model."""
-
-    predictions = model.predict(X_test)
+    predictions = clip_predictions(model.predict(X_test))  # Cap predictions at [0, 100]
     metrics = {
         "rmse": float(np.sqrt(mean_squared_error(y_test, predictions))),
         "mae": float(mean_absolute_error(y_test, predictions)),
@@ -115,6 +125,64 @@ def train_candidate_models(
             model.fit(X_train, y_train)
         fitted_models[name] = model
     return fitted_models
+
+
+def tune_candidate_models(
+    X_train: pd.DataFrame,
+    y_train: pd.Series,
+    *,
+    random_state: int = 42,
+    use_sample_weights: bool = True,
+) -> dict[str, Any]:
+    """Run GridSearchCV over both candidate families, preserving sample weights.
+
+    This is the shared tuning routine (used by the notebook) so that tuned
+    models match the production imbalance-handling strategy. Sample weights
+    are applied during the grid search when ``use_sample_weights`` is True.
+
+    Returns
+    -------
+    dict
+        Mapping of model name -> best fitted estimator from the grid search.
+    """
+
+    sample_weights = _compute_sample_weights(y_train) if use_sample_weights else None
+
+    rf_grid = GridSearchCV(
+        RandomForestRegressor(random_state=random_state, n_jobs=-1),
+        param_grid={
+            "n_estimators": [100, 200, 300],
+            "max_depth": [None, 10, 20, 30],
+            "min_samples_split": [2, 5, 10],
+            "min_samples_leaf": [1, 2, 4],
+        },
+        cv=5,
+        scoring="neg_mean_squared_error",
+        n_jobs=-1,
+    )
+    xgb_grid = GridSearchCV(
+        XGBRegressor(random_state=random_state, verbosity=0),
+        param_grid={
+            "n_estimators": [100, 200, 300],
+            "max_depth": [3, 5, 7, 10],
+            "learning_rate": [0.01, 0.05, 0.1, 0.2],
+            "subsample": [0.8, 0.9, 1.0],
+            "colsample_bytree": [0.8, 0.9, 1.0],
+        },
+        cv=5,
+        scoring="neg_mean_squared_error",
+        n_jobs=-1,
+    )
+
+    tuned: dict[str, Any] = {}
+    for name, grid in (("Random Forest", rf_grid), ("XGBoost", xgb_grid)):
+        if sample_weights is not None:
+            grid.fit(X_train, y_train, sample_weight=sample_weights)
+        else:
+            grid.fit(X_train, y_train)
+        tuned[name] = grid.best_estimator_
+
+    return tuned
 
 
 def _compute_classification_metrics(
@@ -159,7 +227,7 @@ def select_best_model(
     best_composite: float = -np.inf
 
     for name, model in fitted_models.items():
-        predictions = model.predict(X_test)
+        predictions = clip_predictions(model.predict(X_test))
         metrics = {
             "rmse": float(np.sqrt(mean_squared_error(y_test, predictions))),
             "mae": float(mean_absolute_error(y_test, predictions)),

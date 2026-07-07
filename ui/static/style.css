@@ -1,7 +1,7 @@
 :root {
   color-scheme: light;
   --bg: #f4f7fb;
-  --panel: rgba(255, 255, 255, 0.88);
+  --panel: rgba(255, 255, 255, 0.92);   /* slightly more opaque for better contrast */
   --text: #152033;
   --muted: #5a667c;
   --line: rgba(21, 32, 51, 0.08);
@@ -83,6 +83,9 @@ h1 {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  /* NEW: center the model info */
+  text-align: center;
+  align-items: center;
 }
 
 .metric-card span,
@@ -110,6 +113,10 @@ label span {
   gap: 8px;
   padding-top: 12px;
   border-top: 1px solid var(--line);
+  /* keep metrics left‑aligned for readability */
+  text-align: left;
+  align-self: flex-start;
+  width: 100%;
 }
 
 .mini-metrics div span {
@@ -131,6 +138,7 @@ label span {
 
 .panel {
   padding: 24px;
+  /* panel background already set via var(--panel) */
 }
 
 .panel-header {
@@ -170,6 +178,21 @@ input:focus {
 
 input::placeholder {
   color: #b0b8c8;
+}
+
+.input-struggle {
+  border-color: var(--danger) !important;
+  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.1) !important;
+}
+
+.input-average {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.1) !important;
+}
+
+.input-excel {
+  border-color: var(--success) !important;
+  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.1) !important;
 }
 
 button {
@@ -294,7 +317,7 @@ button:active {
   stroke: var(--accent);
   stroke-width: 12;
   stroke-linecap: round;
-  transition: stroke-dashoffset 1.2s ease-out;
+  transition: stroke-dashoffset 1.2s ease-out, stroke 0.5s ease;  /* smooth colour change */
 }
 
 .gauge-score {
@@ -378,7 +401,8 @@ button:active {
 .contrib-fill {
   height: 100%;
   border-radius: 999px;
-  transition: width 1s ease-out;
+  width: 0;                         /* start at zero, animated by JS */
+  transition: width 1s ease-out;    /* smooth animation */
 }
 
 .contrib-positive {

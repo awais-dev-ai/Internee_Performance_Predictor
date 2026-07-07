@@ -112,7 +112,7 @@ To see the logs (helpful if something goes wrong):
 | Issue | Cause | Fix |
 |-------|-------|-----|
 | Build fails | Missing `gunicorn` in requirements.txt | Ensure `gunicorn>=21.2,<23` is in requirements.txt |
-| App crashes on startup | Hugging Face's internal port differs | The Dockerfile uses `EXPOSE 5000`, which is Hugging Face-compatible |
+| App crashes on startup | Hugging Face's internal port differs | The Dockerfile uses `EXPOSE 7860` with `ENV PORT=7860`, which Hugging Face expects (locally the app defaults to 5000 but the container overrides it) |
 | Model trains every restart | `models/` not persisted | Hugging Face Spaces are ephemeral — model retrains on each restart (normal) |
 | Slow first load | Docker is building dependencies | Wait 5-10 minutes. Subsequent pushes are faster due to caching |
 

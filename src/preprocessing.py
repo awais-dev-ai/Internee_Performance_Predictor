@@ -141,6 +141,70 @@ def train_test_split_data(
     return DatasetSplit(X_train=X_train, X_test=X_test, y_train=y_train, y_test=y_test)
 
 
+def train_val_test_split(
+    df: pd.DataFrame,
+    *,
+    val_size: float = 0.15,
+    test_size: float = 0.2,
+    random_state: int = 42,
+    stratify: bool = True,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.Series, pd.Series, pd.Series]:
+    """
+    Split into train, validation, and test sets.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input dataframe with features and target.
+    val_size : float
+        Proportion of total data to use for validation (default 0.15).
+    test_size : float
+        Proportion of total data to use for testing (default 0.2).
+    random_state : int
+        Random seed for reproducibility.
+    stratify : bool
+        If True, use stratified splitting based on binned performance categories.
+
+    Returns
+    -------
+    tuple: (X_train, X_val, X_test, y_train, y_val, y_test)
+    """
+    features, target = split_features_target(df)
+
+    if stratify:
+        strata = _bin_for_stratification(target)
+        # First split off test set
+        X_temp, X_test, y_temp, y_test = train_test_split(
+            features, target,
+            test_size=test_size,
+            random_state=random_state,
+            stratify=strata
+        )
+        # Split temp into train and validation
+        val_ratio = val_size / (1 - test_size)
+        strata_temp = _bin_for_stratification(y_temp)
+        X_train, X_val, y_train, y_val = train_test_split(
+            X_temp, y_temp,
+            test_size=val_ratio,
+            random_state=random_state,
+            stratify=strata_temp
+        )
+    else:
+        X_temp, X_test, y_temp, y_test = train_test_split(
+            features, target,
+            test_size=test_size,
+            random_state=random_state
+        )
+        val_ratio = val_size / (1 - test_size)
+        X_train, X_val, y_train, y_val = train_test_split(
+            X_temp, y_temp,
+            test_size=val_ratio,
+            random_state=random_state
+        )
+
+    return X_train, X_val, X_test, y_train, y_val, y_test
+
+
 def prepare_prediction_frame(
     payload: dict[str, float] | pd.DataFrame,
     *,
