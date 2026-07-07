@@ -69,5 +69,22 @@ jobs:
         run: |
           git config user.email "ci@github.com"
           git config user.name "github-actions"
-          git remote add hf "https://awais-dev-ai:${{ secrets.HF_TOKEN }}@huggingface.co/spaces/awais-dev-ai/Intern-Performance-Predictor" || git remote set-url hf "https://awais-dev-ai:${{ secrets.HF_TOKEN }}@huggingface.co/spaces/awais-dev-ai/Intern-Performance-Predictor"
-          git push hf "HEAD:refs/heads/${GITHUB_REF_NAME}" --force
+          HF_URL="https://awais-dev-ai:${{ secrets.HF_TOKEN }}@huggingface.co/spaces/awais-dev-ai/Intern-Performance-Predictor"
+
+          # Hugging Face Spaces reject binary files (e.g. images/*.png) via plain
+          # git push. Build a clean tree with only what the Docker Space needs.
+          rm -rf hf_push && mkdir hf_push
+          for d in app.py main.py wsgi.py Dockerfile docker-compose.yml requirements.txt src ui .dockerignore; do
+            cp -r "$d" hf_push/ 2>/dev/null || true
+          done
+
+          cd hf_push
+          git init -q
+          git config user.email "ci@github.com"
+          git config user.name "github-actions"
+          git remote add hf "$HF_URL"
+          git fetch hf main -q || true
+          git checkout -b main -q 2>/dev/null || git checkout -B main -q
+          git add -A
+          git commit -q -m "Deploy from ${{ github.sha }}" || echo "Nothing to commit"
+          git push hf main --force
