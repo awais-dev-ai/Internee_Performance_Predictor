@@ -74,7 +74,7 @@ jobs:
           # Hugging Face Spaces reject binary files (e.g. images/*.png) via plain
           # git push. Build a clean tree with only what the Docker Space needs.
           rm -rf hf_push && mkdir hf_push
-          for d in app.py main.py wsgi.py Dockerfile docker-compose.yml requirements.txt src ui .dockerignore; do
+          for d in app.py main.py wsgi.py Dockerfile docker-compose.yml requirements.txt src ui .dockerignore README.md; do
             cp -r "$d" hf_push/ 2>/dev/null || true
           done
 
