@@ -46,8 +46,8 @@
       </div>
       <div class="metric-card">
         <span>Model</span>
-        <strong>{{ metadata.model_name if metadata else 'XGBoost' }}</strong>
-        <small>XGBoost (Regressor + Classifier)</small>
+         <strong>{{ metadata.model_name if metadata else 'Model' }}</strong>
+         <small>{{ metadata.model_name if metadata else 'Model' }} (Regressor + Classifier)</small>
         {% if metadata and metadata.metrics %}
         <div class="mini-metrics">
           <div><span>RMSE</span><strong>{{ metadata.metrics['rmse']|round(2) }}</strong></div>
