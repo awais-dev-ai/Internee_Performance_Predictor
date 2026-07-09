@@ -42,7 +42,7 @@
       <div>
         <h1 class="title">Intern Performance Predictor</h1>
         <h2>Enter task hours, feedback rating, and attendance to instantly predict performance scores and identify at-risk or high-potential interns.</h2>
-        <p class="lead">Built with XGBoost • Class-imbalance optimized • {{ metrics.balanced_accuracy|round(3) if metrics and metrics.balanced_accuracy is defined else '—' }} balanced accuracy</p>
+        <p class="lead">Built with {{ metadata.model_name if metadata else 'ML Model' }} • Class-imbalance optimized • {{ metrics.balanced_accuracy|round(3) if metrics and metrics.balanced_accuracy is defined else '—' }} balanced accuracy</p>
       </div>
       <div class="metric-card">
         <span>Model</span>
