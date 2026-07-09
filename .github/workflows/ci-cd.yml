@@ -1,4 +1,4 @@
-name: CI and CD Pipeline
+name: CI/CD Pipeline
 
 on:
   push:
@@ -126,7 +126,7 @@ jobs:
 
       # 5. Deploy using the OFFICIAL Hugging Face action (no more fragile git init scripts)
       - name: Deploy to Hugging Face Space
-        uses: huggingface/actions/space-push@v1
+        uses: huggingface/huggingface-actions/space-push@main
         with:
           space_host: hf.co
           space_name: awais-dev-ai/Intern-Performance-Predictor
