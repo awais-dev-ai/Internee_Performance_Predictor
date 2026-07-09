@@ -6,12 +6,8 @@ from pathlib import Path
 
 from flask import Flask, render_template, request
 
-from src.data_generation import generate_synthetic_data
 from src.evaluation import classify_performance
-from src.model_training import (
-    load_model_artifacts,
-    oversample_training_data,
-)
+from src.model_training import load_model_artifacts
 from src.preprocessing import FEATURE_COLUMNS, prepare_prediction_frame
 
 
