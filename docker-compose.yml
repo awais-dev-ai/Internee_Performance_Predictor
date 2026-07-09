@@ -7,6 +7,8 @@ services:
       - "7860:7860"
     volumes:
       - ./data:/app/data
-      - ./models:/app/models
+      - ./models:/app/models   # Allows you to swap models without rebuilding locally
     environment:
       - FLASK_ENV=production
+      - PORT=7860              # Explicitly matches HF Space
+      - FLASK_DEBUG=False      # Safe for local Docker testing

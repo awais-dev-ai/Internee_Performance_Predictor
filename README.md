@@ -13,7 +13,7 @@ pinned: false
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![Flask](https://img.shields.io/badge/Flask-3.0-green)
 ![XGBoost](https://img.shields.io/badge/XGBoost-2.0-orange)
-[![CI](https://github.com/awais-dev-ai/Internee_Performance_Predictor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/awais-dev-ai/Internee_Performance_Predictor/actions/workflows/ci.yml)
+[![CI/CD](https://github.com/awais-dev-ai/Internee_Performance_Predictor/actions/workflows/ci-cd.yml/badge.svg?branch=main)](https://github.com/awais-dev-ai/Internee_Performance_Predictor/actions/workflows/ci-cd.yml)
 [![Hugging Face](https://img.shields.io/badge/🤗-Deployed%20on%20Spaces-yellow)](https://huggingface.co/spaces/awais-dev-ai/Intern-Performance-Predictor)
 
 **Predict intern performance and flag struggling/excellent interns using ML with class imbalance handling.**
@@ -33,37 +33,34 @@ Challenge: In real data, Struggle and Excel interns are rare (~15% each), making
 
 **Multi-layer class imbalance strategy:**
 1. **15/70/15 data distribution** — mimics real intern populations (initial generation)
-2. **Oversampling with jitter** — boosts minority classes toward the majority count (note: post-oversampling proportions are no longer exactly 15/70/15)
-3. **Sample-weighted training** — gives higher weight to Struggle/Excel during training
-4. **Stratified splitting** — preserves class proportions in train/test sets
+2. **Stratified splitting** — preserves class proportions in train/validation/test sets (split **before** oversampling to avoid data leakage)
+3. **Oversampling with jitter** — applied **only on the training fold** after splitting, boosting minority classes toward the majority count
+4. **Sample-weighted training** — gives higher weight to Struggle/Excel during training
 5. **Composite model selection** — balances RMSE + balanced accuracy
 6. **Threshold optimization** — grid search finds optimal cutoffs (not hardcoded 40/75)
 
 ## Results
 
+<!-- BEGIN METRICS -->
 | Metric | Value |
 |--------|-------|
-| **Model** | XGBoost |
-| **RMSE** | 4.04 |
-| **MAE** | 2.98 |
-| **R²** | 0.966 |
-| **Accuracy** | 0.917 |
-| **Balanced Accuracy** | 0.935 |
-| **Macro F1** | 0.927 |
-
-### Per-Class Performance (F1)
-
-> Reported by the analysis notebook (`notebooks/Intern_Performance_Analysis.ipynb`, §16).
-
-| Class | F1 |
-|-------|----|
-| **Excel** | 0.899 |
-| **Average** | 0.917 |
-| **Struggle** | 0.965 |
+| **Model** | `Random Forest` |
+| **RMSE** | `4.14` |
+| **MAE** | `3.19` |
+| **R²** | `0.964` |
+| **Accuracy** | `0.905` |
+| **Balanced Accuracy** | `0.924` |
+| **Macro F1** | `0.917` |
+| **Struggle F1** | `0.973` |
+| **Average F1** | `0.910` |
+| **Excel F1** | `0.868` |
+| **Optimal Struggle Threshold** | `≤ 38` |
+| **Optimal Excel Threshold** | `≥ 77` |
+<!-- END METRICS -->
 
 > **Note:** These metrics are achieved on a **synthetic dataset** generated to mimic intern performance patterns. In real-world production with noisy, incomplete HR data, these numbers would require re-evaluation with real data, feature engineering, and continuous monitoring.
 
-**Key insight:** The pipeline demonstrates strong recall for minority classes on synthetic benchmarks, validating the class-imbalance strategy (oversampling, sample weights, threshold tuning). In production with real HR data, this would require continuous validation and drift monitoring.
+**Key insight:** The pipeline demonstrates strong recall for minority classes on synthetic benchmarks, validating the class-imbalance strategy (oversampling after split, sample weights, threshold tuning). In production with real HR data, this would require continuous validation and drift monitoring.
 
 ## Web Interface
 
@@ -79,7 +76,10 @@ Challenge: In real data, Struggle and Excel interns are rare (~15% each), making
 # Install dependencies
 pip install -r requirements.txt
 
-# Train and run the app
+# Train the model first
+python main.py
+
+# Start the web server
 python app.py
 # Open http://127.0.0.1:5000
 ```
@@ -103,7 +103,7 @@ python main.py
 
 - **Regression model** predicts continuous performance score (0-100)
 - **Classification layer** buckets into Excel/Average/Struggle
-- **Class imbalance handling** — sample weights, oversampling, stratified split
+- **Class imbalance handling** — sample weights, oversampling after split, stratified split
 - **Threshold optimization** — grid search for best classification cutoffs
 - **Explainability** — SHAP values + feature importance
 - **Web interface** — Flask form for real-time predictions with input validation (empty field checks, numeric type enforcement, range bounds)
@@ -121,11 +121,13 @@ python main.py
 ├── app.py                  # Flask entry point (listens on PORT, default 5000; Docker sets PORT=7860)
 ├── main.py                 # Training pipeline (CLI)
 ├── wsgi.py                 # WSGI entry point (gunicorn/waitress)
+├── scripts/
+│   └── update_readme.py    # Auto-update README metrics from JSON
 ├── src/
 │   ├── __init__.py
 │   ├── data_generation.py     # Synthetic data with 15/70/15 distribution
 │   ├── preprocessing.py       # Stratified splitting, validation
-│   ├── model_training.py      # Sample weights, composite selection
+│   ├── model_training.py      # Sample weights, composite selection, JSON export
 │   ├── evaluation.py          # Threshold optimization
 │   ├── interpretation.py     # Feature importance
 │   └── eda.py                 # EDA helpers
@@ -134,7 +136,8 @@ python main.py
 ├── notebooks/
 │   └── Intern_Performance_Analysis.ipynb  # Full analysis with plots
 ├── tests/                    # Unit tests (see tests/ for current count)
-└── data/                     # Generated datasets
+├── data/                     # Generated datasets
+└── models/                   # Trained model + metadata (pickle + JSON)
 ```
 
 ## Notebook Visualizations
@@ -172,10 +175,12 @@ A step-by-step manual deployment guide is available in [`HUGGINGFACE.md`](HUGGIN
 ```
 generate_synthetic_data()
     └─ 15% Struggle + 70% Average + 15% Excel (initial generation)
-    └─ Oversample minority classes with Gaussian jitter toward majority count
        ↓
 train_val_test_split(stratify=True)
     └─ Splits into Train / Validation (15%) / Test (20%), preserving stratified proportions
+       ↓
+oversample_training_data()  ← Applied ONLY on training fold (no data leakage)
+    └─ Jitter-based oversampling boosts minority classes toward majority count
        ↓
 tune_candidate_models(use_sample_weights=True)
     └─ 5-fold GridSearchCV over Random Forest + XGBoost
@@ -190,7 +195,7 @@ optimize_thresholds(metric="macro_f1")
        ↓
 regression_metrics(X_test, y_test)  # Final unbiased test-set reporting
        ↓
-save_model_artifacts()  # model + metadata with thresholds
+save_model_artifacts()  # model + metadata (pickle + JSON)
 ```
 
 ### Inference Flow
@@ -222,6 +227,11 @@ Return: score + category (Struggle/Average/Excel)
 
 ## Key Design Decisions
 
+### Why oversampling after split instead of before?
+- **Prevents data leakage** — synthetic twins of test samples never appear in training
+- **Honest evaluation** — test metrics reflect true real-world performance
+- **Same jitter quality** — the oversampling logic is identical, just applied to the right fold
+
 ### Why oversampling instead of SMOTE?
 - **Simpler** — no need for nearest-neighbor computation
 - **Effective** — Gaussian jitter creates natural variation
@@ -243,12 +253,14 @@ Return: score + category (Struggle/Average/Excel)
 - No imbalance handling
 - Struggle recall: ~60-70%
 - Hardcoded thresholds (40/75)
+- Data leakage: oversampling before split → inflated metrics
 
 ### After (Optimized pipeline)
-- 15/70/15 initial distribution, minority-boosted via oversampling
-- Full imbalance strategy
-- **Struggle F1: 0.965 on synthetic test set** — validates the imbalance-handling approach
+- 15/70/15 initial distribution, minority-boosted via oversampling **after split**
+- Full imbalance strategy (no data leakage)
+- **Struggle F1: see Results table above** — validates the imbalance-handling approach
 - Optimized thresholds stored in metadata (grid search; defaults 40/75)
+- Metrics are **honest** — test set was never touched by oversampling
 
 ## Future Improvements
 

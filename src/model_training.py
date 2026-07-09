@@ -14,6 +14,7 @@ from sklearn.metrics import balanced_accuracy_score, mean_absolute_error, mean_s
 from sklearn.model_selection import GridSearchCV
 from xgboost import XGBRegressor
 
+from src.data_generation import _oversample_minority
 from src.evaluation import classify_performance
 
 
@@ -32,6 +33,62 @@ EXCEL_THRESHOLD = 75.0
 # Valid score range for the performance target
 SCORE_MIN = 0.0
 SCORE_MAX = 100.0
+
+
+def oversample_training_data(
+    X_train: pd.DataFrame,
+    y_train: pd.Series,
+    *,
+    target_proportions: dict[str, float] | None = None,
+    jitter_scale: float = 0.05,
+    random_state: int = 42,
+) -> tuple[pd.DataFrame, pd.Series]:
+    """Oversample minority classes in the training fold only.
+
+    Recombines features and target, applies jitter-based oversampling
+    to bring minority classes closer to majority class prevalence,
+    then returns the oversampled training data. Test data is never touched.
+
+    Parameters
+    ----------
+    X_train : pd.DataFrame
+        Training features.
+    y_train : pd.Series
+        Training target.
+    target_proportions : dict or None
+        Desired class proportions (defaults to CLASS_SPECS proportions).
+    jitter_scale : float
+        Scale of Gaussian jitter relative to feature std (default 0.05).
+    random_state : int
+        Random seed for reproducibility.
+
+    Returns
+    -------
+    tuple : (X_train_resampled, y_train_resampled)
+    """
+    import numpy as np
+
+    rng = np.random.default_rng(random_state)
+
+    if target_proportions is None:
+        from src.data_generation import CLASS_SPECS
+        target_proportions = {label: spec["count"] for label, spec in CLASS_SPECS.items()}
+
+    # Recombine into a temporary DataFrame for the oversampling helper
+    temp_df = X_train.copy()
+    temp_df["_target"] = y_train.values
+
+    oversampled_df = _oversample_minority(
+        temp_df,
+        label_column="_target",
+        target_proportions=target_proportions,
+        rng=rng,
+        jitter_scale=jitter_scale,
+    )
+
+    X_resampled = oversampled_df.drop(columns=["_target"])
+    y_resampled = oversampled_df["_target"]
+    return X_resampled, y_resampled
 
 
 def clip_predictions(preds) -> np.ndarray:
@@ -262,12 +319,43 @@ def build_model_metadata(
     model_name: str,
     metrics: dict[str, float],
     feature_defaults: dict[str, float],
+    classification: dict[str, object] | None = None,
 ) -> dict[str, Any]:
-    return {
+    meta: dict[str, Any] = {
         "model_name": model_name,
         "metrics": metrics,
         "feature_defaults": feature_defaults,
     }
+    if classification is not None:
+        meta["classification"] = classification
+    return meta
+
+
+def save_metadata_json(metadata: dict, json_path: str | Path) -> None:
+    """Save metadata as a human‑readable JSON file.
+
+    Converts numpy/pandas types to plain Python types so the JSON
+    is clean and numeric values remain numbers.
+    """
+    import json
+
+    def _convert(obj):
+        if isinstance(obj, (np.integer, np.int64)):
+            return int(obj)
+        if isinstance(obj, (np.floating, np.float64)):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        if isinstance(obj, dict):
+            return {k: _convert(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [_convert(v) for v in obj]
+        return obj
+
+    json_path = Path(json_path)
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(_convert(metadata), f, indent=2)
 
 
 def save_model_artifacts(

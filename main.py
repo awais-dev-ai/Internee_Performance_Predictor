@@ -5,9 +5,11 @@ from __future__ import annotations
 from pathlib import Path
 
 from src.data_generation import generate_synthetic_data
-from src.evaluation import optimize_thresholds, regression_metrics
+from src.evaluation import classification_metrics, classify_performance, optimize_thresholds, regression_metrics
 from src.model_training import (
     build_model_metadata,
+    oversample_training_data,
+    save_metadata_json,
     save_model_artifacts,
     select_best_model,
     tune_candidate_models,           # <-- automated tuning
@@ -43,7 +45,7 @@ def run_pipeline(
     dataset = generate_synthetic_data(
         n_samples=n_samples,
         save_path=data_path,
-        oversample_minority=True,
+        oversample_minority=False,    # Oversampling done AFTER split to avoid leakage
     )
 
     # Split into train, validation, and test sets
@@ -53,6 +55,13 @@ def run_pipeline(
         test_size=0.2,
         random_state=42,
         stratify=stratify_split,
+    )
+
+    # Oversample ONLY the training fold to handle class imbalance
+    X_train, y_train = oversample_training_data(
+        X_train, y_train,
+        jitter_scale=0.05,
+        random_state=42,
     )
 
     # Train with automated hyperparameter tuning (reproducible)
@@ -78,12 +87,20 @@ def run_pipeline(
     final_preds = best_result.model.predict(X_test)
     test_metrics = regression_metrics(y_test, final_preds)
 
+    # Compute classification metrics using optimized thresholds
+    struggle_th = (threshold_optimization or {}).get("struggle_threshold", 40.0)
+    excel_th = (threshold_optimization or {}).get("excel_threshold", 75.0)
+    true_labels = classify_performance(y_test.values, struggle_threshold=struggle_th, excel_threshold=excel_th)
+    pred_labels = classify_performance(final_preds, struggle_threshold=struggle_th, excel_threshold=excel_th)
+    clf_report = classification_metrics(true_labels, pred_labels)
+
     # Build metadata
     feature_defaults = X_train.median().to_dict()
     metadata = build_model_metadata(
         model_name=best_result.name,
         metrics=best_result.metrics,   # these are from validation
         feature_defaults=feature_defaults,
+        classification=clf_report,     # full classification report with per-class F1
     )
 
     # Include threshold optimization results in metadata
@@ -103,6 +120,10 @@ def run_pipeline(
         model_path=model_path,
         metadata_path=metadata_path,
     )
+
+    # Save human-readable JSON version
+    json_path = project_root / "models" / "model_metadata.json"
+    save_metadata_json(metadata, json_path)
 
     return {
         "model_name": best_result.name,

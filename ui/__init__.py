@@ -7,15 +7,12 @@ from pathlib import Path
 from flask import Flask, render_template, request
 
 from src.data_generation import generate_synthetic_data
-from src.evaluation import classify_performance, optimize_thresholds
+from src.evaluation import classify_performance
 from src.model_training import (
-    build_model_metadata,
     load_model_artifacts,
-    save_model_artifacts,
-    select_best_model,
-    train_candidate_models,
+    oversample_training_data,
 )
-from src.preprocessing import FEATURE_COLUMNS, prepare_prediction_frame, train_test_split_data
+from src.preprocessing import FEATURE_COLUMNS, prepare_prediction_frame
 
 
 class _ClippedModel:
@@ -45,68 +42,24 @@ def _project_paths(base_dir: Path | None = None) -> dict[str, Path]:
 
 
 def ensure_artifacts(paths: dict[str, Path]) -> tuple[object, dict]:
-    """Load saved artifacts or train a fresh model if none exist.
+    """Load saved artifacts or raise a clear error if none exist.
 
-    Uses stratified splitting, sample weights, and threshold optimization
-    to handle class imbalance for Struggle and Excel predictions.
+    The model must be pre-trained by running ``python main.py``
+    before starting the web server. This avoids cold-start training delays
+    on Hugging Face Spaces and ensures test data is never oversampled.
     """
 
-    if paths["model_path"].exists() and paths["metadata_path"].exists():
-        return load_model_artifacts(
-            model_path=paths["model_path"],
-            metadata_path=paths["metadata_path"],
+    if not paths["model_path"].exists() or not paths["metadata_path"].exists():
+        raise FileNotFoundError(
+            f"Model artifacts not found at {paths['model_path']} "
+            f"or {paths['metadata_path']}. "
+            "Please run 'python main.py' before starting the web server."
         )
 
-    paths["data_dir"].mkdir(parents=True, exist_ok=True)
-    paths["model_dir"].mkdir(parents=True, exist_ok=True)
-
-    # Generate data with oversampling for minority classes
-    dataset = generate_synthetic_data(
-        n_samples=2000,
-        save_path=paths["data_path"],
-        oversample_minority=True,
-    )
-
-    # Stratified split preserves 15/70/15 distribution
-    split = train_test_split_data(dataset, stratify=True)
-
-    # Train with sample weights to handle imbalance
-    fitted_models = train_candidate_models(
-        split.X_train, split.y_train,
-        use_sample_weights=True,
-    )
-
-    # Select best model using composite score (regression + classification)
-    best_result = select_best_model(fitted_models, split.X_test, split.y_test)
-
-    # Optimize classification thresholds
-    threshold_opt = optimize_thresholds(
-        split.y_test.values,
-        best_result.predictions,
-        metric="macro_f1",
-    )
-
-    feature_defaults = split.X_train.median().to_dict()
-    metadata = build_model_metadata(
-        model_name=best_result.name,
-        metrics=best_result.metrics,
-        feature_defaults=feature_defaults,
-    )
-
-    # Store optimized thresholds in metadata
-    metadata["threshold_optimization"] = {
-        "struggle_threshold": threshold_opt["struggle_threshold"],
-        "excel_threshold": threshold_opt["excel_threshold"],
-        "best_macro_f1": threshold_opt["best_score"],
-    }
-
-    save_model_artifacts(
-        best_result.model,
-        metadata,
+    return load_model_artifacts(
         model_path=paths["model_path"],
         metadata_path=paths["metadata_path"],
     )
-    return best_result.model, metadata
 
 
 def create_app(
