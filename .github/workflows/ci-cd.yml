@@ -28,7 +28,7 @@ jobs:
       - name: Lint code
         run: ruff check .
 
-  # --- JOB 2: TESTING & TRAINING (The actual CI) ---
+  # --- JOB 2: TESTING & VALIDATION TRAINING ---
   test:
     runs-on: ubuntu-latest
     needs: lint
@@ -60,20 +60,15 @@ jobs:
       - name: Run unit tests
         run: python -m pytest tests/ -v
 
-      # CRITICAL IMPROVEMENT: Train the model ONCE here (fast mode)
-      - name: Train model (fast validation)
+      # --- VALIDATION TRAINING (Runs fast, just to check if the pipeline breaks) ---
+      - name: Validate training pipeline (fast mode)
         run: python main.py --samples 500
         timeout-minutes: 5  # Fails fast if training hangs
 
-      # Save the trained model so we don't retrain it later
-      - name: Upload trained model artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: trained-model-${{ matrix.python-version }}
-          path: models/
-          if-no-files-found: error  # Instantly fails if main.py didn't save the model
+      # Note: We are NOT uploading this 500-sample model.
+      # The deployment will use the REAL model from the repo's models/ folder.
 
-  # --- JOB 3: DEPLOYMENT (The actual CD) ---
+  # --- JOB 3: DEPLOYMENT (Uses the pre-trained model from the repo) ---
   deploy-hf:
     runs-on: ubuntu-latest
     needs: [lint, test]
@@ -82,40 +77,34 @@ jobs:
     permissions:
       contents: write  # Required to push to the Hugging Face Space repo
     steps:
-      # 1. Checkout the source code (app.py, Dockerfile, src/, etc.)
+      # 1. Checkout the source code (which includes your REAL model in models/)
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # 2. Download the pre-trained model from the 'test' job (using 3.12 as the source)
-      - name: Download trained model
-        uses: actions/download-artifact@v4
-        with:
-          name: trained-model-3.12
-          path: models/
-
-      # 3. Verify the model exists before deploying (fail-fast safety net)
-      - name: Verify model artifacts
+      # 2. Verify the REAL pre-trained model exists in the repository
+      - name: Verify real model artifacts exist in repo
         run: |
           ls -la models/
           if [ ! -f "models/best_model.pkl" ]; then
-            echo "❌ ERROR: best_model.pkl not found!"
+            echo "❌ ERROR: best_model.pkl not found in the repository!"
+            echo "Please train the full model locally and commit it to the models/ folder."
             exit 1
           fi
-          echo "✅ Model artifacts verified."
+          echo "✅ Real model artifacts verified."
 
-      # 4. Build a clean deployment bundle (only what the Space needs)
+      # 3. Build a clean deployment bundle (copy code + REAL model from repo)
       - name: Prepare deployment bundle
         run: |
           set -e  # Exit on any error
           mkdir -p deploy_bundle
 
-          # Copy application code (fail loudly if critical files are missing)
+          # Copy application code
           cp -v app.py main.py requirements.txt Dockerfile deploy_bundle/ 2>/dev/null
           cp -rv src/ deploy_bundle/ 2>/dev/null
-          cp -rv ui/ deploy_bundle/ 2>/dev/null  # Added ui/ since app.py imports it
+          cp -rv ui/ deploy_bundle/ 2>/dev/null
 
-          # Copy the pre-trained model (downloaded from the CI artifact)
+          # Copy the REAL pre-trained model (directly from the checked-out repo)
           cp -rv models/ deploy_bundle/
 
           # Remove Python cache files to keep the Space lightweight
@@ -124,7 +113,7 @@ jobs:
           echo "📦 Deployment bundle contents:"
           ls -la deploy_bundle/
 
-      # 5. Deploy using git push to Hugging Face (reliable method)
+      # 4. Deploy using git push to Hugging Face
       - name: Deploy to Hugging Face Space
         run: |
           set -e
@@ -132,7 +121,7 @@ jobs:
           git init -q
           git config user.email "ci@github.com"
           git config user.name "github-actions"
-          git remote add hf "https://huggingface.co/spaces/awais-dev-ai/Intern-Performance-Predictor"
+          git remote add hf "https://awais-dev-ai:${{ secrets.HF_TOKEN }}@huggingface.co/spaces/awais-dev-ai/Intern-Performance-Predictor"
           git fetch hf main -q || true
           git checkout -b main -q 2>/dev/null || git checkout -B main -q
           git add -A

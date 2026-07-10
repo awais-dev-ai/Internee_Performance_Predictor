@@ -13,6 +13,7 @@ pinned: false
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![Flask](https://img.shields.io/badge/Flask-3.0-green)
 ![XGBoost](https://img.shields.io/badge/XGBoost-2.0-orange)
+![Random Forest](https://img.shields.io/badge/Random%20Forest-1.0-blue)
 [![CI/CD](https://github.com/awais-dev-ai/Internee_Performance_Predictor/actions/workflows/ci-cd.yml/badge.svg?branch=main)](https://github.com/awais-dev-ai/Internee_Performance_Predictor/actions/workflows/ci-cd.yml)
 [![Hugging Face](https://img.shields.io/badge/🤗-Deployed%20on%20Spaces-yellow)](https://huggingface.co/spaces/awais-dev-ai/Intern-Performance-Predictor)
 
