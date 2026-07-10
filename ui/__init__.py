@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 from flask import Flask, render_template, request
@@ -38,69 +37,20 @@ def _project_paths(base_dir: Path | None = None) -> dict[str, Path]:
     }
 
 
-def download_model_from_hf_hub(repo_id: str, token: str | None = None) -> None:
-    """Download model artifacts from Hugging Face Hub if not present locally."""
-    from huggingface_hub import hf_hub_download
-
-    model_path = Path("models/best_model.pkl")
-    metadata_path = Path("models/model_metadata.pkl")
-    json_path = Path("models/model_metadata.json")
-
-    if not model_path.exists():
-        print("⬇️ Downloading model from Hugging Face Hub...")
-        os.makedirs("models", exist_ok=True)
-        hf_hub_download(
-            repo_id=repo_id,
-            filename="models/best_model.pkl",
-            repo_type="space",
-            token=token,
-        )
-        print("✅ Model downloaded.")
-
-    if not json_path.exists():
-        print("⬇️ Downloading metadata from Hugging Face Hub...")
-        hf_hub_download(
-            repo_id=repo_id,
-            filename="models/model_metadata.json",
-            repo_type="space",
-            token=token,
-        )
-        print("✅ Metadata downloaded.")
-
-
 def ensure_artifacts(paths: dict[str, Path]) -> tuple[object, dict]:
-    """Load saved artifacts or download from Hugging Face Hub if none exist.
+    """Load saved artifacts or raise a clear error if none exist.
 
-    On Hugging Face Spaces, the model is downloaded from HF Hub at startup.
-    This avoids cold-start training delays and ensures consistent model versions.
+    The model should be downloaded by app.py from Hugging Face Hub before
+    starting the web server. This avoids cold-start training delays.
     """
-    # Try to download from HF Hub if artifacts don't exist
-    if not paths["model_path"].exists():
-        hf_token = os.environ.get("HF_TOKEN")
-        try:
-            download_model_from_hf_hub(
-                repo_id="awais-dev-ai/Intern-Performance-Predictor",
-                token=hf_token if hf_token else None,
-            )
-        except Exception as e:
-            raise FileNotFoundError(
-                f"Model artifacts not found at {paths['model_path']}. "
-                f"Could not download from Hugging Face Hub: {e}. "
-                "Please ensure the model is uploaded to the Space or run 'python main.py'."
-            ) from e
 
-    if not paths["metadata_path"].exists():
-        hf_token = os.environ.get("HF_TOKEN")
-        try:
-            download_model_from_hf_hub(
-                repo_id="awais-dev-ai/Intern-Performance-Predictor",
-                token=hf_token if hf_token else None,
-            )
-        except Exception as e:
-            raise FileNotFoundError(
-                f"Metadata not found at {paths['metadata_path']}. "
-                f"Could not download from Hugging Face Hub: {e}."
-            ) from e
+    if not paths["model_path"].exists() or not paths["metadata_path"].exists():
+        raise FileNotFoundError(
+            f"Model artifacts not found at {paths['model_path']} "
+            f"or {paths['metadata_path']}. "
+            "The model should be downloaded from Hugging Face Hub on startup. "
+            "Check app.py load_model() function."
+        )
 
     return load_model_artifacts(
         model_path=paths["model_path"],
