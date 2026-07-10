@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from flask import Flask, render_template, request
@@ -37,20 +38,69 @@ def _project_paths(base_dir: Path | None = None) -> dict[str, Path]:
     }
 
 
-def ensure_artifacts(paths: dict[str, Path]) -> tuple[object, dict]:
-    """Load saved artifacts or raise a clear error if none exist.
+def download_model_from_hf_hub(repo_id: str, token: str | None = None) -> None:
+    """Download model artifacts from Hugging Face Hub if not present locally."""
+    from huggingface_hub import hf_hub_download
 
-    The model must be pre-trained by running ``python main.py``
-    before starting the web server. This avoids cold-start training delays
-    on Hugging Face Spaces and ensures test data is never oversampled.
-    """
+    model_path = Path("models/best_model.pkl")
+    metadata_path = Path("models/model_metadata.pkl")
+    json_path = Path("models/model_metadata.json")
 
-    if not paths["model_path"].exists() or not paths["metadata_path"].exists():
-        raise FileNotFoundError(
-            f"Model artifacts not found at {paths['model_path']} "
-            f"or {paths['metadata_path']}. "
-            "Please run 'python main.py' before starting the web server."
+    if not model_path.exists():
+        print("⬇️ Downloading model from Hugging Face Hub...")
+        os.makedirs("models", exist_ok=True)
+        hf_hub_download(
+            repo_id=repo_id,
+            filename="models/best_model.pkl",
+            repo_type="space",
+            token=token,
         )
+        print("✅ Model downloaded.")
+
+    if not json_path.exists():
+        print("⬇️ Downloading metadata from Hugging Face Hub...")
+        hf_hub_download(
+            repo_id=repo_id,
+            filename="models/model_metadata.json",
+            repo_type="space",
+            token=token,
+        )
+        print("✅ Metadata downloaded.")
+
+
+def ensure_artifacts(paths: dict[str, Path]) -> tuple[object, dict]:
+    """Load saved artifacts or download from Hugging Face Hub if none exist.
+
+    On Hugging Face Spaces, the model is downloaded from HF Hub at startup.
+    This avoids cold-start training delays and ensures consistent model versions.
+    """
+    # Try to download from HF Hub if artifacts don't exist
+    if not paths["model_path"].exists():
+        hf_token = os.environ.get("HF_TOKEN")
+        try:
+            download_model_from_hf_hub(
+                repo_id="awais-dev-ai/Intern-Performance-Predictor",
+                token=hf_token if hf_token else None,
+            )
+        except Exception as e:
+            raise FileNotFoundError(
+                f"Model artifacts not found at {paths['model_path']}. "
+                f"Could not download from Hugging Face Hub: {e}. "
+                "Please ensure the model is uploaded to the Space or run 'python main.py'."
+            ) from e
+
+    if not paths["metadata_path"].exists():
+        hf_token = os.environ.get("HF_TOKEN")
+        try:
+            download_model_from_hf_hub(
+                repo_id="awais-dev-ai/Intern-Performance-Predictor",
+                token=hf_token if hf_token else None,
+            )
+        except Exception as e:
+            raise FileNotFoundError(
+                f"Metadata not found at {paths['metadata_path']}. "
+                f"Could not download from Hugging Face Hub: {e}."
+            ) from e
 
     return load_model_artifacts(
         model_path=paths["model_path"],
@@ -108,16 +158,12 @@ def create_app(
             importances = raw_model.feature_importances_
             feature_names = list(FEATURE_COLUMNS)
             input_values = feature_frame.iloc[0]
-            # Get median values as baseline
             baseline = feature_frame.median()
 
             for i, name in enumerate(feature_names):
                 if i < len(importances):
-                    # How far from baseline, scaled by importance
                     deviation = float(input_values[name] - baseline[name])
-                    # Get max deviation in training to normalize
                     direction = "positive" if deviation >= 0 else "negative"
-                    # Scale contribution percentage
                     abs_dev = abs(deviation)
                     max_dev = max(abs(float(input_values[name])), 1.0)
                     pct = min(abs_dev / max_dev * 100 * float(importances[i]), 100)
@@ -158,15 +204,11 @@ def create_app(
                 "attendance_pct": request.form.get("attendance_pct", "").strip(),
             }
 
-            # --- Input validation ---
             errors = []
-
-            # Check for empty fields — all fields are required
             for field, value in raw.items():
                 if not value:
                     errors.append(f"{field} is required.")
 
-            # Check for valid numeric values
             parsed = {}
             for field, value in raw.items():
                 if not value:
@@ -176,7 +218,6 @@ def create_app(
                 except ValueError:
                     errors.append(f"{field} must be a number, got '{value}'.")
 
-            # Check range bounds
             range_checks = {
                 "task_completion_hrs": (2.0, 20.0),
                 "feedback_rating": (1.0, 5.0),
@@ -220,7 +261,7 @@ def create_app(
                 struggle_threshold=struggle_threshold,
                 excel_threshold=excel_threshold,
             )
-        except Exception as exc:  # pragma: no cover - surfaced to UI
+        except Exception as exc:
             return render_template(
                 "index.html",
                 feature_columns=FEATURE_COLUMNS,
@@ -237,6 +278,6 @@ def create_app(
     def health():
         return {"status": "ok", "model_name": metadata.get("model_name", "Unknown")}
 
-    app.predict_from_payload = predict_from_payload  # type: ignore[attr-defined]
-    app.project_paths = paths  # type: ignore[attr-defined]
+    app.predict_from_payload = predict_from_payload
+    app.project_paths = paths
     return app
