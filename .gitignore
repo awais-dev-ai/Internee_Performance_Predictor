@@ -101,8 +101,9 @@ desktop.ini
 
 # Project specific data and models (ML/Data Science standard)
 # Keep .gitkeep to maintain directory structure
-# Model files (*.pkl) are needed for deployment - remove this section if you want to deploy with model
 data/*
 !data/.gitkeep
-models/*.pkl
+# models/!  # This line was causing issues - commented out
+# Model files (*.pkl) are included for Hugging Face deployment
+# models/*.pkl
 !models/.gitkeep
