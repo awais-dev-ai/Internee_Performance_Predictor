@@ -81,7 +81,6 @@ jobs:
 
       - name: Create kernel files
         run: |
-          # Kernel metadata
           cat > kernel-metadata.json << EOF
           {
             "id": "${{ secrets.KAGGLE_USERNAME }}/train-full-model",
@@ -100,7 +99,6 @@ jobs:
           }
           EOF
 
-          # Training script
           cat > script.py << EOF
           import os
           import subprocess
@@ -125,24 +123,32 @@ jobs:
       - name: Push kernel to Kaggle
         run: kaggle kernels push --path .
 
+      # 🔥 FIXED: Uses plain text parsing instead of --format json
       - name: Wait for kernel to complete and download output
         run: |
           KERNEL="${{ secrets.KAGGLE_USERNAME }}/train-full-model"
           echo "Waiting for kernel $KERNEL to finish..."
+          
           for i in {1..60}; do
-            STATUS=$(kaggle kernels status "$KERNEL" --format json | jq -r '.status')
-            echo "Kernel status: $STATUS"
-            if [ "$STATUS" == "complete" ]; then
+            STATUS_OUTPUT=$(kaggle kernels status "$KERNEL" 2>&1)
+            echo "Kernel status check: $STATUS_OUTPUT"
+            
+            if echo "$STATUS_OUTPUT" | grep -q "complete"; then
               echo "✅ Kernel completed!"
               break
-            elif [ "$STATUS" == "error" ]; then
+            elif echo "$STATUS_OUTPUT" | grep -q "error"; then
               echo "❌ Kernel failed!"
               exit 1
+            elif echo "$STATUS_OUTPUT" | grep -q "running"; then
+              echo "⏳ Kernel is still running..."
+            elif echo "$STATUS_OUTPUT" | grep -q "pending"; then
+              echo "⏳ Kernel is pending..."
+            else
+              echo "⏳ Waiting for kernel..."
             fi
             sleep 10
           done
 
-          # Download output
           mkdir -p models
           kaggle kernels output "$KERNEL" -p ./models/
           echo "📥 Downloaded kernel output."
