@@ -55,146 +55,146 @@ jobs:
         run: python main.py --samples 500
         timeout-minutes: 5
 
-  # --- JOB 3: FULL TRAINING ON KAGGLE (Only on main pushes) ---
-  train-kaggle:
-    runs-on: ubuntu-latest
-    needs: [lint, test]
-    if: (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) || github.event_name == 'workflow_dispatch'
-    env:
-      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_KEY }}
-      KERNEL_ID: ${{ secrets.KAGGLE_USERNAME }}/train-full-model   # Fixed name – simple & clean
-    steps:
-      - uses: actions/checkout@v4
+# --- JOB 3: FULL TRAINING ON KAGGLE (Only on main pushes) ---
+train-kaggle:
+  runs-on: ubuntu-latest
+  needs: [lint, test]
+  if: (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) || github.event_name == 'workflow_dispatch'
+  env:
+    KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_KEY }}
+    KERNEL_ID: ${{ secrets.KAGGLE_USERNAME }}/train-full-model   # Fixed name
+  steps:
+    - uses: actions/checkout@v4
 
-      - name: Setup Kaggle credentials
-        env:
-          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
-        run: |
-          mkdir -p ~/.kaggle
-          echo '{"username":"'"$KAGGLE_USERNAME"'","key":"'"${{ secrets.KAGGLE_KEY }}"'"}' > ~/.kaggle/kaggle.json
-          chmod 600 ~/.kaggle/kaggle.json
-          echo "✅ Kaggle credentials set up."
+    - name: Setup Kaggle credentials
+      env:
+        KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+      run: |
+        mkdir -p ~/.kaggle
+        echo '{"username":"'"$KAGGLE_USERNAME"'","key":"'"${{ secrets.KAGGLE_KEY }}"'"}' > ~/.kaggle/kaggle.json
+        chmod 600 ~/.kaggle/kaggle.json
+        echo "✅ Kaggle credentials set up."
 
-      - name: Install Kaggle CLI and dependencies
-        run: |
-          pip install --upgrade kaggle
-          sudo apt-get update && sudo apt-get install -y jq
+    - name: Install Kaggle CLI and dependencies
+      run: |
+        pip install --upgrade kaggle
+        sudo apt-get update && sudo apt-get install -y jq
 
-      # 🔥 FIX: Delete the existing kernel before pushing to avoid 409 Conflict
-      - name: Delete existing kernel
-        run: |
-          KERNEL="${{ env.KERNEL_ID }}"
-          echo "Deleting existing kernel: $KERNEL (if it exists)"
-          kaggle kernels delete "$KERNEL" || true
-          echo "✅ Cleaned up (or kernel didn't exist)."
+    # 🔥 FIX: Delete the existing kernel before pushing
+    - name: Delete existing kernel (to avoid 409 conflict)
+      run: |
+        KERNEL="${{ env.KERNEL_ID }}"
+        echo "Attempting to delete existing kernel: $KERNEL"
+        kaggle kernels delete "$KERNEL" || true
+        echo "✅ Cleaned up (or kernel didn't exist)."
 
-      - name: Create kernel files
-        run: |
-          cat > kernel-metadata.json << EOF
-          {
-            "id": "${{ env.KERNEL_ID }}",
-            "title": "Train Full Model",
-            "code_file": "script.py",
-            "language": "python",
-            "kernel_type": "script",
-            "is_private": true,
-            "enable_gpu": false,
-            "enable_tpu": false,
-            "enable_internet": true,
-            "dataset_sources": [],
-            "competition_sources": [],
-            "kernel_sources": [],
-            "model_sources": []
-          }
-          EOF
+    - name: Create kernel files
+      run: |
+        cat > kernel-metadata.json << EOF
+        {
+          "id": "${{ env.KERNEL_ID }}",
+          "title": "Train Full Model",
+          "code_file": "script.py",
+          "language": "python",
+          "kernel_type": "script",
+          "is_private": true,
+          "enable_gpu": false,
+          "enable_tpu": false,
+          "enable_internet": true,
+          "dataset_sources": [],
+          "competition_sources": [],
+          "kernel_sources": [],
+          "model_sources": []
+        }
+        EOF
 
-          cat > script.py << EOF
-          import os
-          import subprocess
-          import sys
+        cat > script.py << EOF
+        import os
+        import subprocess
+        import sys
 
-          repo_url = "${{ github.server_url }}/${{ github.repository }}.git"
-          branch = "${{ github.ref_name }}"
-          print(f"Cloning {repo_url} (branch: {branch})")
-          subprocess.run(["git", "clone", "--branch", branch, repo_url, "repo"], check=True)
-          os.chdir("repo")
+        repo_url = "${{ github.server_url }}/${{ github.repository }}.git"
+        branch = "${{ github.ref_name }}"
+        print(f"Cloning {repo_url} (branch: {branch})")
+        subprocess.run(["git", "clone", "--branch", branch, repo_url, "repo"], check=True)
+        os.chdir("repo")
 
-          print("Installing dependencies...")
-          subprocess.run([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"], check=True)
+        print("Installing dependencies...")
+        subprocess.run([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"], check=True)
 
-          print("Starting training...")
-          subprocess.run([sys.executable, "main.py"], check=True)
-          print("Training completed successfully.")
-          EOF
+        print("Starting training...")
+        subprocess.run([sys.executable, "main.py"], check=True)
+        print("Training completed successfully.")
+        EOF
 
-          echo "✅ Kernel files created with ID: ${{ env.KERNEL_ID }}"
+        echo "✅ Kernel files created with ID: ${{ env.KERNEL_ID }}"
 
-      - name: Push kernel to Kaggle
-        run: kaggle kernels push --path .
+    - name: Push kernel to Kaggle
+      run: kaggle kernels push --path .
 
-      - name: Wait for kernel to complete and download output
-        run: |
-          KERNEL="${{ env.KERNEL_ID }}"
-          echo "Waiting for kernel $KERNEL to finish..."
+    - name: Wait for kernel to complete and download output
+      run: |
+        KERNEL="${{ env.KERNEL_ID }}"
+        echo "Waiting for kernel $KERNEL to finish..."
+        
+        while true; do
+          STATUS_OUTPUT=$(kaggle kernels status "$KERNEL" 2>&1)
+          echo "Kernel status: $STATUS_OUTPUT"
           
-          while true; do
-            STATUS_OUTPUT=$(kaggle kernels status "$KERNEL" 2>&1)
-            echo "Kernel status: $STATUS_OUTPUT"
-            
-            if echo "$STATUS_OUTPUT" | grep -q "complete"; then
-              echo "✅ Kernel completed!"
-              break
-            elif echo "$STATUS_OUTPUT" | grep -q "error"; then
-              echo "❌ Kernel failed!"
-              exit 1
-            else
-              echo "⏳ Still running... waiting 10 seconds."
-              sleep 10
-            fi
-          done
+          if echo "$STATUS_OUTPUT" | grep -q "complete"; then
+            echo "✅ Kernel completed!"
+            break
+          elif echo "$STATUS_OUTPUT" | grep -q "error"; then
+            echo "❌ Kernel failed!"
+            exit 1
+          else
+            echo "⏳ Still running... waiting 10 seconds."
+            sleep 10
+          fi
+        done
 
-          mkdir -p models
-          kaggle kernels output "$KERNEL" -p ./models/
-          echo "📥 Downloaded kernel output."
+        mkdir -p models
+        kaggle kernels output "$KERNEL" -p ./models/
+        echo "📥 Downloaded kernel output."
 
-      - name: Upload model to Hugging Face Hub
-        run: |
-          pip install huggingface_hub
-          python -c "
-          from huggingface_hub import HfApi, upload_file
-          import os
-          api = HfApi()
-          
-          if os.path.exists('models/best_model.pkl'):
-              upload_file(
-                  path_or_fileobj='models/best_model.pkl',
-                  path_in_repo='models/best_model.pkl',
-                  repo_id='awais-dev-ai/Intern-Performance-Predictor',
-                  repo_type='space',
-                  token='${{ secrets.HF_TOKEN }}'
-              )
-              print('✅ Model uploaded to Hugging Face Hub.')
-          else:
-              print('❌ models/best_model.pkl not found!')
-              exit(1)
-          "
+    - name: Upload model to Hugging Face Hub
+      run: |
+        pip install huggingface_hub
+        python -c "
+        from huggingface_hub import HfApi, upload_file
+        import os
+        api = HfApi()
+        
+        if os.path.exists('models/best_model.pkl'):
+            upload_file(
+                path_or_fileobj='models/best_model.pkl',
+                path_in_repo='models/best_model.pkl',
+                repo_id='awais-dev-ai/Intern-Performance-Predictor',
+                repo_type='space',
+                token='${{ secrets.HF_TOKEN }}'
+            )
+            print('✅ Model uploaded to Hugging Face Hub.')
+        else:
+            print('❌ models/best_model.pkl not found!')
+            exit(1)
+        "
 
-      - name: Upload metadata to Hugging Face Hub
-        run: |
-          pip install huggingface_hub
-          python -c "
-          from huggingface_hub import upload_file
-          import os
-          if os.path.exists('models/model_metadata.json'):
-              upload_file(
-                  path_or_fileobj='models/model_metadata.json',
-                  path_in_repo='models/model_metadata.json',
-                  repo_id='awais-dev-ai/Intern-Performance-Predictor',
-                  repo_type='space',
-                  token='${{ secrets.HF_TOKEN }}'
-              )
-              print('✅ Metadata uploaded to Hugging Face Hub.')
-          "
+    - name: Upload metadata to Hugging Face Hub
+      run: |
+        pip install huggingface_hub
+        python -c "
+        from huggingface_hub import upload_file
+        import os
+        if os.path.exists('models/model_metadata.json'):
+            upload_file(
+                path_or_fileobj='models/model_metadata.json',
+                path_in_repo='models/model_metadata.json',
+                repo_id='awais-dev-ai/Intern-Performance-Predictor',
+                repo_type='space',
+                token='${{ secrets.HF_TOKEN }}'
+            )
+            print('✅ Metadata uploaded to Hugging Face Hub.')
+        "
 
   # --- JOB 4: DEPLOY CODE TO HUGGING FACE (NO MODEL IN GIT) ---
   deploy-hf:
