@@ -123,7 +123,7 @@ jobs:
           echo "✅ Kernel files created."
 
       - name: Push kernel to Kaggle
-        run: kaggle kernels push --path . --force
+        run: kaggle kernels push --path .
 
       - name: Wait for kernel to complete and download output
         run: |
