@@ -7,7 +7,7 @@ sdk: docker
 sdk_version: "3.0"          # Required field – set to a valid version
 python_version: "3.12"      # Required field – matches the  Dockerfile
 app_file: app.py            # Required field – points to the entry point
-app_port: 7860              # Optional, but good to keep
+app_port: 7860              # Optional, but good to keep 
 pinned: false
 ---
 
