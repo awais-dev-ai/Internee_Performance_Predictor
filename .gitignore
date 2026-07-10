@@ -100,8 +100,9 @@ desktop.ini
 *.swo
 
 # Project specific data and models (ML/Data Science standard)
-# Ignore all files in data/ and models/ directories except the directory structure (.gitkeep)
+# Keep .gitkeep to maintain directory structure
+# Model files (*.pkl) are needed for deployment - remove this section if you want to deploy with model
 data/*
 !data/.gitkeep
-models/*
+models/*.pkl
 !models/.gitkeep
