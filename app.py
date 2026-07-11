@@ -29,7 +29,6 @@ def load_model():
     print("✅ Latest model downloaded.")
 
     # Also download metadata JSON if available
-    metadata_json_path = "models/model_metadata.json"
     try:
         hf_hub_download(
             repo_id="awais-dev-ai/Intern-Performance-Model",
