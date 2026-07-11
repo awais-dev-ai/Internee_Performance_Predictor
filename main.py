@@ -50,7 +50,7 @@ def upload_model_to_hub(
     model_path: Path,
     metadata_path: Path,
     token: str | None = None,
-    repo_id: str = "awais-dev-ai/Intern-Performance-Predictor",
+    repo_id: str = "awais-dev-ai/Intern-Performance-Model",
 ) -> None:
     """
     Upload the trained model and metadata to Hugging Face Hub.
@@ -67,7 +67,7 @@ def upload_model_to_hub(
     token : str, optional
         Hugging Face access token. If not provided, reads from HF_TOKEN env var.
     repo_id : str
-        Hugging Face repository ID (your Space name).
+        Hugging Face repository ID (your model repo name).
     """
     if HfApi is None or upload_file is None:
         print("⚠️  huggingface_hub not installed. Skipping upload.")
@@ -83,9 +83,9 @@ def upload_model_to_hub(
         if model_path.exists():
             upload_file(
                 path_or_fileobj=str(model_path),
-                path_in_repo="models/best_model.pkl",
+                path_in_repo="best_model.pkl",
                 repo_id=repo_id,
-                repo_type="space",
+                repo_type="model",
                 token=token,
             )
             print(f"✅ Model uploaded to {repo_id}")
@@ -95,9 +95,9 @@ def upload_model_to_hub(
         if metadata_path.exists():
             upload_file(
                 path_or_fileobj=str(metadata_path),
-                path_in_repo="models/model_metadata.json",
+                path_in_repo="model_metadata.json",
                 repo_id=repo_id,
-                repo_type="space",
+                repo_type="model",
                 token=token,
             )
             print(f"✅ Metadata uploaded to {repo_id}")
