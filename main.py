@@ -100,7 +100,7 @@ def upload_model_to_hub(
                 repo_type="model",
                 token=token,
             )
-            print(f"✅ Metadata uploaded to {repo_id}")
+            print(f"✅ Metadata (JSON) uploaded to {repo_id}")
         else:
             print(f"⚠️  Metadata file not found: {metadata_path}")
 
@@ -138,6 +138,7 @@ def run_pipeline(
     data_path = project_root / "data" / "intern_performance_data.csv"
     model_path = project_root / "models" / "best_model.pkl"
     metadata_path = project_root / "models" / "model_metadata.pkl"
+    json_metadata_path = project_root / "models" / "model_metadata.json"
 
     dataset = generate_synthetic_data(
         n_samples=n_samples,
@@ -201,6 +202,7 @@ def run_pipeline(
 
     metadata["test_metrics"] = test_metrics
 
+    # Save artifacts (model + pickle metadata)
     save_model_artifacts(
         best_result.model,
         metadata,
@@ -208,10 +210,32 @@ def run_pipeline(
         metadata_path=metadata_path,
     )
 
-    json_path = project_root / "models" / "model_metadata.json"
-    save_metadata_json(metadata, json_path)
+    # Save human‑readable JSON metadata
+    save_metadata_json(metadata, json_metadata_path)
 
-    upload_model_to_hub(model_path, json_path)
+    # ---- Upload everything to Hugging Face Hub ----
+    token = os.environ.get("HF_TOKEN")
+    if token:
+        # Upload model and JSON metadata (existing function)
+        upload_model_to_hub(model_path, json_metadata_path, token=token)
+
+        # Also upload the pickle metadata because the UI expects it
+        try:
+            if metadata_path.exists():
+                upload_file(
+                    path_or_fileobj=str(metadata_path),
+                    path_in_repo="model_metadata.pkl",
+                    repo_id="awais-dev-ai/Intern-Performance-Model",
+                    repo_type="model",
+                    token=token,
+                )
+                print("✅ Pickle metadata uploaded to Hub.")
+            else:
+                print(f"⚠️ Pickle metadata not found: {metadata_path}")
+        except Exception as e:
+            print(f"❌ Upload of pickle metadata failed: {e}")
+    else:
+        print("⚠️ HF_TOKEN not set — skipping upload.")
 
     return {
         "model_name": best_result.name,

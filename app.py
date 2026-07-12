@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Root Flask entry point — re-exports the app from the ui/ package."""
+"""Root Flask entry point — re‑exports the app from the ui/ package."""
 
 from __future__ import annotations
 
@@ -10,36 +10,52 @@ from ui import create_app
 
 
 def load_model():
-    """Download the latest model from Hugging Face Hub (overwrites local cache)."""
-    model_path = "models/best_model.pkl"
+    """Download the latest model and metadata from Hugging Face Hub."""
     os.makedirs("models", exist_ok=True)
 
-    # 🔥 FORCE REDOWNLOAD: Delete the cached file if it exists
-    if os.path.exists(model_path):
-        print("🗑️ Removing cached model to fetch the latest version...")
-        os.remove(model_path)
+    model_path = "models/best_model.pkl"
+    metadata_pickle_path = "models/model_metadata.pkl"
+
+    # Delete cached files to force a fresh download
+    for path in [model_path, metadata_pickle_path]:
+        if os.path.exists(path):
+            print(f"🗑️ Removing cached {path}...")
+            os.remove(path)
 
     print("⬇️ Downloading latest model from Hugging Face Hub...")
     hf_hub_download(
         repo_id="awais-dev-ai/Intern-Performance-Model",
         filename="best_model.pkl",
         repo_type="model",
-        local_dir=".",
+        local_dir="models",          # now downloads directly into models/
     )
-    print("✅ Latest model downloaded.")
+    print("✅ Model downloaded.")
 
-    # Also download metadata JSON if available
+    print("⬇️ Downloading latest metadata (pickle) from Hugging Face Hub...")
+    try:
+        hf_hub_download(
+            repo_id="awais-dev-ai/Intern-Performance-Model",
+            filename="model_metadata.pkl",
+            repo_type="model",
+            local_dir="models",
+        )
+        print("✅ Metadata pickle downloaded.")
+    except Exception as e:
+        print(f"⚠️ Metadata pickle not found on Hub: {e}")
+
+    # Optional: also download the JSON version (for reference)
     try:
         hf_hub_download(
             repo_id="awais-dev-ai/Intern-Performance-Model",
             filename="model_metadata.json",
             repo_type="model",
-            local_dir=".",
+            local_dir="models",
         )
-        print("✅ Latest metadata downloaded.")
+        print("✅ Metadata JSON downloaded.")
     except Exception:
         print("⚠️ Metadata JSON not found, using pickle metadata...")
 
+    # Load the model from the now‑existing file
     with open(model_path, 'rb') as f:
         return pickle.load(f)
 
