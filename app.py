@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import os
-import pickle
+import joblib
 from huggingface_hub import hf_hub_download
 from ui import create_app
 
@@ -27,7 +27,7 @@ def load_model():
         repo_id="awais-dev-ai/Intern-Performance-Model",
         filename="best_model.pkl",
         repo_type="model",
-        local_dir="models",          # now downloads directly into models/
+        local_dir="models",
     )
     print("✅ Model downloaded.")
 
@@ -55,9 +55,8 @@ def load_model():
     except Exception:
         print("⚠️ Metadata JSON not found, using pickle metadata...")
 
-    # Load the model from the now‑existing file
-    with open(model_path, 'rb') as f:
-        return pickle.load(f)
+    # ✅ Load the model using joblib (matches how it was saved)
+    return joblib.load(model_path)
 
 
 # Load the model ONCE when the app starts
