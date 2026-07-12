@@ -69,15 +69,17 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Prepare deployment bundle (code only)
+      - name: Prepare deployment bundle
         run: |
           set -e
           mkdir -p deploy_bundle
-          cp -v app.py main.py requirements.txt Dockerfile deploy_bundle/ 2>/dev/null
-          cp -rv src/ deploy_bundle/ 2>/dev/null
-          cp -rv ui/ deploy_bundle/ 2>/dev/null
+          # Copy all essential files, including README
+          cp -v app.py main.py requirements.txt Dockerfile README.md deploy_bundle/
+          cp -rv src/ deploy_bundle/
+          cp -rv ui/ deploy_bundle/
+          # Remove __pycache__ if any
           find deploy_bundle -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
-          echo "📦 Deployment bundle contents (no large models):"
+          echo "📦 Deployment bundle contents:"
           ls -la deploy_bundle/
 
       - name: Deploy code to Hugging Face Space
