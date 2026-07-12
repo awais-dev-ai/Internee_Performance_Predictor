@@ -38,7 +38,8 @@ def build_metrics_table(meta: dict) -> str:
     mae = _fmt(metrics.get("mae"), 2)
     r2 = _fmt(metrics.get("r2"), 3)
     accuracy = _fmt(classification.get("accuracy"), 3)
-    balanced_acc = _fmt(classification.get("balanced_accuracy"), 3)
+    # ✅ Balanced Accuracy now comes from the validation metrics (matching the UI)
+    balanced_acc = _fmt(metrics.get("balanced_accuracy"), 3)
     macro_f1 = _fmt(classification.get("macro_f1"), 3)
     struggle_f1 = _fmt(per_class.get("Struggle", {}).get("f1"), 3)
     average_f1 = _fmt(per_class.get("Average", {}).get("f1"), 3)
@@ -66,6 +67,8 @@ def build_metrics_table(meta: dict) -> str:
 
 def _fmt(val, decimals: int) -> str:
     """Format a value with the given number of decimal places."""
+    if val is None:
+        return "—"
     if isinstance(val, (int, float)):
         return f"{val:.{decimals}f}"
     return str(val)

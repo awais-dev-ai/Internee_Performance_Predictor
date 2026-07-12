@@ -52,7 +52,7 @@ Challenge: In real data, Struggle and Excel interns are rare (~15% each), making
 | **MAE** | `3.19` |
 | **R²** | `0.964` |
 | **Accuracy** | `0.905` |
-| **Balanced Accuracy** | `0.924` |
+| **Balanced Accuracy** | `0.908` |
 | **Macro F1** | `0.917` |
 | **Struggle F1** | `0.973` |
 | **Average F1** | `0.910` |

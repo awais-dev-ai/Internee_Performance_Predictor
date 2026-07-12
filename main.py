@@ -7,15 +7,17 @@ This script:
 3. Selects the best model based on validation performance.
 4. Saves the model and metadata locally.
 5. Automatically uploads the model to Hugging Face Hub if HF_TOKEN is set.
+6. Updates the README metrics table (only for full training runs).
 
 Usage:
-    python main.py                # Train with default 2000 samples
-    python main.py --samples 500  # Train with 500 samples (fast validation)
+    python main.py                # Train with default 2000 samples + update README
+    python main.py --samples 500  # Train with 500 samples (fast validation, no README update)
 """
 
 from __future__ import annotations
 
 import os
+import subprocess
 from pathlib import Path
 
 # --- OFFICIAL FIX: Suppress sklearn parallel warning (documented environment variable) ---
@@ -108,6 +110,27 @@ def upload_model_to_hub(
         print(f"❌ Upload failed: {e}")
 
 
+def update_readme_if_possible() -> None:
+    """Run the README update script if it exists."""
+    script_path = Path(__file__).resolve().parent / "scripts" / "update_readme.py"
+    if not script_path.exists():
+        print("⚠️  scripts/update_readme.py not found – skipping README update.")
+        return
+
+    print("📝 Updating README with latest validation metrics...")
+    try:
+        subprocess.run(
+            ["python", str(script_path)],
+            check=True,
+            capture_output=False,
+        )
+        print("✅ README updated successfully.")
+    except subprocess.CalledProcessError as e:
+        print(f"⚠️  README update failed with exit code {e.returncode}.")
+    except Exception as e:
+        print(f"⚠️  Could not run README update: {e}")
+
+
 def run_pipeline(
     *,
     n_samples: int = 2000,
@@ -128,6 +151,7 @@ def run_pipeline(
         - Evaluates on the test set
         - Saves model artifacts locally
         - Uploads to Hugging Face Hub (if token is set)
+        - Updates README (only for full training runs)
 
     Returns
     -------
@@ -236,6 +260,12 @@ def run_pipeline(
             print(f"❌ Upload of pickle metadata failed: {e}")
     else:
         print("⚠️ HF_TOKEN not set — skipping upload.")
+
+    # ---- Update README only for full training runs (n_samples >= 2000) ----
+    if n_samples >= 2000:
+        update_readme_if_possible()
+    else:
+        print("⏭️  Skipping README update (fast validation run).")
 
     return {
         "model_name": best_result.name,
